@@ -7,7 +7,6 @@
   let width = 0, height = 0, dpr = 1, animationFrame = 0;
   let particles = [];
   let heartMode = false;
-  let audioContext = null, musicNodes = [], musicOn = false;
 
   const questions = [
     {
@@ -205,171 +204,203 @@
     animationFrame = window.requestAnimationFrame(animate);
   }
 
-  let melodyTimer = null;
-  let melodyStep = 0;
-  let masterGainNode = null;
-  let musicVolume = 0.85;
-  let noiseBuffer = null;
+  let selectedStyle = "A";
+  let activeStyle = null;
+  let musicOn = false;
+  let musicNodes = [];
+  let musicMaster = null;
+  let musicVolume = 0.8;
+  let transportEventId = null;
+  let songStep = 0;
 
-  function createNoiseBuffer() {
-    if (!audioContext) return null;
-    const samples = audioContext.sampleRate;
-    const buffer = audioContext.createBuffer(1, samples, audioContext.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < samples; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / samples * 0.22);
-    return buffer;
-  }
-
-  function playTone(frequency, startAt, duration, volume, type, cutoff, attack) {
-    if (!audioContext || !masterGainNode) return;
-    const osc = audioContext.createOscillator();
-    const filter = audioContext.createBiquadFilter();
-    const gain = audioContext.createGain();
-    osc.type = type || "triangle";
-    osc.frequency.setValueAtTime(frequency, startAt);
-    filter.type = "lowpass";
-    filter.frequency.setValueAtTime(cutoff || 2200, startAt);
-    filter.Q.value = 0.45;
-    const attackTime = Math.min(attack || 0.025, duration * 0.35);
-    const endAt = startAt + duration;
-    gain.gain.setValueAtTime(0.0001, startAt);
-    gain.gain.exponentialRampToValueAtTime(Math.max(volume, 0.0002), startAt + Math.max(attackTime, 0.008));
-    gain.gain.setValueAtTime(Math.max(volume * 0.62, 0.0002), startAt + duration * 0.62);
-    gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
-    osc.connect(filter);
-    filter.connect(gain);
-    gain.connect(masterGainNode);
-    osc.start(startAt);
-    osc.stop(endAt + 0.025);
-  }
-
-  function playKick(startAt, volume) {
-    if (!audioContext || !masterGainNode) return;
-    const osc = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(125, startAt);
-    osc.frequency.exponentialRampToValueAtTime(48, startAt + 0.13);
-    gain.gain.setValueAtTime(0.0001, startAt);
-    gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.19);
-    osc.connect(gain);
-    gain.connect(masterGainNode);
-    osc.start(startAt);
-    osc.stop(startAt + 0.21);
-  }
-
-  function playNoise(startAt, duration, volume, cutoff) {
-    if (!audioContext || !masterGainNode || !noiseBuffer) return;
-    const source = audioContext.createBufferSource();
-    const filter = audioContext.createBiquadFilter();
-    const gain = audioContext.createGain();
-    source.buffer = noiseBuffer;
-    filter.type = "highpass";
-    filter.frequency.setValueAtTime(cutoff, startAt);
-    gain.gain.setValueAtTime(0.0001, startAt);
-    gain.gain.exponentialRampToValueAtTime(Math.max(volume, 0.0002), startAt + 0.006);
-    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
-    source.connect(filter);
-    filter.connect(gain);
-    gain.connect(masterGainNode);
-    source.start(startAt, 0, duration);
-    source.stop(startAt + duration + 0.015);
-  }
-
-  function scheduleMusic() {
-    if (!musicOn || !audioContext || audioContext.state !== "running") return;
-
-    // Original retro-romantic synth-pop with a subtle Latin urban syncopation.
-    const bpm = 96;
-    const beat = 60 / bpm;
-    const eighth = beat / 2;
-    const loopDuration = beat * 16;
-    const now = audioContext.currentTime + 0.10;
-    const chords = [
-      [130.81, 164.81, 196.00, 246.94], // Cmaj7
-      [123.47, 146.83, 196.00, 220.00], // Gadd9/B
-      [110.00, 130.81, 164.81, 196.00], // Am7
-      [87.31, 130.81, 174.61, 220.00]   // Fmaj7
-    ];
-    const bassline = [
-      65.41, 0, 98.00, 65.41, 0, 82.41, 65.41, 0,
-      61.74, 0, 92.50, 61.74, 0, 77.78, 61.74, 0,
-      55.00, 0, 82.41, 55.00, 0, 69.30, 55.00, 0,
-      43.65, 0, 65.41, 43.65, 0, 58.27, 43.65, 0
-    ];
-    const lead = [
-      523.25, 0, 659.25, 587.33, 0, 523.25, 659.25, 0,
-      493.88, 0, 587.33, 523.25, 0, 493.88, 440.00, 0,
-      440.00, 0, 523.25, 587.33, 0, 523.25, 440.00, 0,
-      392.00, 0, 440.00, 493.88, 0, 440.00, 392.00, 0
-    ];
-    const kickSteps = [0, 5, 8, 13, 16, 21, 24, 29, 31];
-    const clapSteps = [2, 6, 10, 14, 18, 22, 26, 30];
-
-    for (let bar = 0; bar < 4; bar++) {
-      const barStart = now + bar * beat * 4;
-      chords[bar].forEach((frequency, index) => {
-        playTone(frequency, barStart, beat * 3.85, index === 0 ? 0.048 : 0.035, "sawtooth", 1050, 0.20);
-      });
-      playTone(chords[bar][2] * 2, barStart + beat * 1.5, beat * 2.1, 0.027, "triangle", 2500, 0.06);
+  const soundtrack = {
+    A: {
+      name: "Romance de película", bpm: 72,
+      chords: [
+        ["C3","G3","B3","E4","G4"], ["B2","G3","A3","D4","G4"],
+        ["A2","E3","G3","C4","E4"], ["G2","D3","G3","B3","D4"],
+        ["F2","C3","E3","A3","C4"], ["E2","C3","E3","G3","C4"],
+        ["D2","A2","C3","F3","A3"], ["G2","D3","F#3","A3","D4"]
+      ],
+      arpeggios: [
+        ["C3","E4","G3","B4","G4","E4","B3","G4"],
+        ["B2","D4","G3","A4","G4","D4","A3","G4"],
+        ["A2","C4","E3","G4","E4","C4","G3","E4"],
+        ["G2","B3","D3","G4","D4","B3","G3","D4"],
+        ["F2","A3","C3","E4","C4","A3","E3","C4"],
+        ["E2","G3","C3","E4","C4","G3","E3","C4"],
+        ["D2","F3","A2","C4","A3","F3","C3","A3"],
+        ["G2","B3","D3","F#4","D4","B3","A3","D4"]
+      ],
+      melody: [
+        ["G4",null,"B4","C5",null,"B4","G4",null],
+        ["F#4",null,"A4","B4",null,"A4","F#4",null],
+        ["E4",null,"G4","A4","B4",null,"A4",null],
+        ["D4",null,"G4","A4",null,"G4","D4",null],
+        ["C4",null,"E4","G4",null,"E4","C4",null],
+        ["B3",null,"E4","G4",null,"E4","B3",null],
+        ["A3",null,"D4","F#4",null,"E4","D4",null],
+        ["B3",null,"D4","G4",null,"F#4","D4",null]
+      ]
+    },
+    B: {
+      name: "Balada ochentera", bpm: 96,
+      chords: [["A3","C4","E4","G4"],["F3","A3","C4","E4"],["C3","E3","G3","C4"],["G3","B3","D4","G4"]],
+      bass: ["A1","F1","C2","G1"],
+      melody: [
+        ["E5",null,"G5","A5",null,"G5","E5",null],
+        ["C5",null,"E5","G5",null,"E5","C5",null],
+        ["G4",null,"C5","E5",null,"D5","C5",null],
+        ["D5",null,"G5","A5",null,"G5","D5",null]
+      ]
     }
+  };
 
-    for (let step = 0; step < 32; step++) {
-      const at = now + step * eighth;
-      if (bassline[step]) playTone(bassline[step], at, eighth * 1.55, 0.18, "sawtooth", 340, 0.018);
-      if (lead[step]) playTone(lead[step], at + (step % 4 === 2 ? eighth * 0.12 : 0), eighth * 1.25, 0.115, "triangle", 2600, 0.025);
-      if (kickSteps.includes(step)) playKick(at, 0.28);
-      if (clapSteps.includes(step)) playNoise(at, 0.13, 0.105, 1500);
-      if (step % 2 === 1) playNoise(at, 0.045, step % 4 === 3 ? 0.026 : 0.014, 6200);
-    }
-
-    melodyStep += 1;
-    melodyTimer = window.setTimeout(scheduleMusic, loopDuration * 1000 - 80);
+  function selectMusicStyle(style) {
+    selectedStyle = style;
+    $("music-option-a").classList.toggle("selected", style === "A");
+    $("music-option-b").classList.toggle("selected", style === "B");
+    $("select-a").setAttribute("aria-pressed", String(style === "A"));
+    $("select-b").setAttribute("aria-pressed", String(style === "B"));
   }
 
-  async function toggleMusic(force) {
-    const next = typeof force === "boolean" ? force : !musicOn;
-    if (next === musicOn) return;
+  function trackNode(node) { musicNodes.push(node); return node; }
 
-    if (next) {
-      try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) throw new Error("Audio no disponible");
-        if (audioContext && audioContext.state !== "closed") await audioContext.close();
-        audioContext = new AudioCtx();
-        await audioContext.resume();
-        masterGainNode = audioContext.createGain();
-        masterGainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
-        masterGainNode.gain.setTargetAtTime(0.68 * musicVolume, audioContext.currentTime, 0.35);
-        masterGainNode.connect(audioContext.destination);
-        noiseBuffer = createNoiseBuffer();
-        musicOn = true;
-        melodyStep = 0;
-        scheduleMusic();
-        $("music-toggle").setAttribute("aria-pressed", "true");
-        $("music-label").textContent = "Música activada";
-      } catch (error) {
-        musicOn = false;
-        $("music-toggle").setAttribute("aria-pressed", "false");
-        $("music-label").textContent = "Audio no disponible";
-      }
-    } else {
-      musicOn = false;
-      if (melodyTimer !== null) {
-        window.clearTimeout(melodyTimer);
-        melodyTimer = null;
-      }
-      if (audioContext && audioContext.state !== "closed") {
-        try { await audioContext.close(); } catch (_) {}
-      }
-      audioContext = null;
-      masterGainNode = null;
-      noiseBuffer = null;
-      melodyStep = 0;
-      $("music-toggle").setAttribute("aria-pressed", "false");
-      $("music-label").textContent = "Música apagada";
+  function makeSynthPad(destination, type, envelope, volume) {
+    const synth = trackNode(new Tone.PolySynth(Tone.Synth, { oscillator: { type }, envelope }));
+    synth.volume.value = volume;
+    synth.connect(destination);
+    return synth;
+  }
+
+  async function stopMusic(label = "Música apagada") {
+    musicOn = false;
+    activeStyle = null;
+    if (window.Tone) {
+      try { Tone.Transport.stop(); Tone.Transport.cancel(0); } catch (_) {}
     }
+    if (musicMaster && window.Tone) {
+      try { musicMaster.gain.setValueAtTime(0.0001, Tone.now()); } catch (_) {}
+    }
+    musicNodes.forEach(node => { try { if (node && typeof node.dispose === "function") node.dispose(); } catch (_) {} });
+    musicNodes = [];
+    musicMaster = null;
+    transportEventId = null;
+    songStep = 0;
+    $("music-toggle").setAttribute("aria-pressed", "false");
+    $("music-label").textContent = label;
+  }
+
+  async function startMusic(style) {
+    if (!window.Tone) { $("music-label").textContent = "No se pudo cargar el audio"; return false; }
+    if (musicOn && activeStyle === style) return true;
+    await stopMusic("Preparando música…");
+    selectMusicStyle(style);
+    $("music-label").textContent = "Cargando " + soundtrack[style].name + "…";
+    try {
+      await Tone.start();
+      Tone.Transport.stop();
+      Tone.Transport.cancel(0);
+      Tone.Transport.position = "0:0:0";
+      Tone.Transport.bpm.value = soundtrack[style].bpm;
+
+      const master = trackNode(new Tone.Gain(0.0001).toDestination());
+      musicMaster = master;
+      const reverb = trackNode(new Tone.Reverb({ decay: style === "A" ? 4.5 : 2.8, wet: style === "A" ? 0.32 : 0.22 }));
+      await reverb.ready;
+      reverb.connect(master);
+
+      if (style === "A") {
+        const delay = trackNode(new Tone.FeedbackDelay("8n", 0.12));
+        delay.connect(reverb);
+        const piano = trackNode(new Tone.Sampler({
+          urls: {
+            C3: "C3.mp3", "D#3": "Ds3.mp3", "F#3": "Fs3.mp3", A3: "A3.mp3",
+            C4: "C4.mp3", "D#4": "Ds4.mp3", "F#4": "Fs4.mp3", A4: "A4.mp3",
+            C5: "C5.mp3", "D#5": "Ds5.mp3", "F#5": "Fs5.mp3", A5: "A5.mp3"
+          },
+          baseUrl: "https://tonejs.github.io/audio/salamander/",
+          attack: 0.02, release: 1.1
+        }));
+        piano.volume.value = -1;
+        piano.connect(delay);
+        const strings = makeSynthPad(reverb, "triangle", { attack: 1.15, decay: 0.4, sustain: 0.65, release: 2.2 }, -20);
+        const highPad = makeSynthPad(reverb, "sine", { attack: 1.4, decay: 0.4, sustain: 0.5, release: 2.5 }, -27);
+        $("music-label").textContent = "Cargando piano…";
+        await Tone.loaded();
+        const track = soundtrack.A;
+        transportEventId = Tone.Transport.scheduleRepeat((time) => {
+          const step = songStep % 64, bar = Math.floor(step / 8), slot = step % 8;
+          const chord = track.chords[bar];
+          if (slot === 0) {
+            strings.triggerAttackRelease(chord.slice(1), "1m", time, 0.17);
+            highPad.triggerAttackRelease([chord[2], chord[4]], "1m", time, 0.08);
+          }
+          piano.triggerAttackRelease(track.arpeggios[bar][slot], "8n", time, slot === 0 || slot === 4 ? 0.78 : 0.58);
+          const topNote = track.melody[bar][slot];
+          if (topNote) piano.triggerAttackRelease(topNote, "4n", time, 0.55);
+          songStep = (songStep + 1) % 64;
+        }, "8n", 0);
+      } else {
+        const chorus = trackNode(new Tone.Chorus(2.2, 2.8, 0.34).start());
+        chorus.connect(reverb);
+        const filter = trackNode(new Tone.Filter({ frequency: 1800, type: "lowpass", rolloff: -24 }));
+        filter.connect(chorus);
+        const pad = makeSynthPad(filter, "fatsawtooth", { attack: 0.35, decay: 0.35, sustain: 0.55, release: 1.5 }, -22);
+        const electricPiano = makeSynthPad(reverb, "square", { attack: 0.012, decay: 0.22, sustain: 0.12, release: 0.28 }, -13);
+        const bass = trackNode(new Tone.MonoSynth({
+          oscillator: { type: "sawtooth" },
+          filter: { type: "lowpass", frequency: 260, Q: 1.1 },
+          envelope: { attack: 0.02, decay: 0.2, sustain: 0.24, release: 0.12 },
+          filterEnvelope: { attack: 0.01, decay: 0.15, sustain: 0.08, release: 0.1, baseFrequency: 75, octaves: 2 }
+        }));
+        bass.volume.value = -8; bass.connect(master);
+        const lead = trackNode(new Tone.Synth({ oscillator: { type: "fatsawtooth" }, envelope: { attack: 0.025, decay: 0.14, sustain: 0.3, release: 0.35 } }));
+        lead.volume.value = -9; lead.connect(chorus);
+        const kick = trackNode(new Tone.MembraneSynth({ pitchDecay: 0.035, octaves: 5, envelope: { attack: 0.001, decay: 0.22, sustain: 0, release: 0.01 } }));
+        kick.volume.value = -6; kick.connect(master);
+        const snare = trackNode(new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.001, decay: 0.11, sustain: 0 } }));
+        snare.volume.value = -19; snare.connect(master);
+        const hat = trackNode(new Tone.MetalSynth({
+          frequency: 360, envelope: { attack: 0.001, decay: 0.065, release: 0.015 },
+          harmonicity: 5.1, modulationIndex: 28, resonance: 2600, octaves: 1.4
+        }));
+        hat.volume.value = -25; hat.connect(master);
+        const track = soundtrack.B;
+        const roots = track.bass;
+        transportEventId = Tone.Transport.scheduleRepeat((time) => {
+          const step = songStep % 64, bar = Math.floor(step / 8), slot = step % 8;
+          const chord = track.chords[bar % track.chords.length];
+          if (slot === 0) pad.triggerAttackRelease(chord, "1m", time, 0.18);
+          if ([0,3,4,7].includes(slot)) electricPiano.triggerAttackRelease(chord.slice(1), "8n", time, slot === 0 || slot === 4 ? 0.5 : 0.34);
+          if ([0,3,4,7].includes(slot)) bass.triggerAttackRelease(roots[bar % roots.length], "8n", time, slot === 0 || slot === 4 ? 0.72 : 0.52);
+          const leadNote = track.melody[bar % track.melody.length][slot];
+          if (leadNote) lead.triggerAttackRelease(leadNote, "8n", time, 0.34);
+          if ([0,4].includes(slot)) kick.triggerAttackRelease("C1", "8n", time, 0.78);
+          if ([2,6].includes(slot)) snare.triggerAttackRelease("16n", time, 0.46);
+          hat.triggerAttackRelease("16n", time, slot % 2 ? 0.18 : 0.25);
+          songStep = (songStep + 1) % 64;
+        }, "8n", 0);
+      }
+
+      musicOn = true;
+      activeStyle = style;
+      musicMaster.gain.setValueAtTime(0.0001, Tone.now());
+      musicMaster.gain.linearRampToValueAtTime(0.85 * musicVolume, Tone.now() + 0.6);
+      Tone.Transport.start("+0.08");
+      $("music-toggle").setAttribute("aria-pressed", "true");
+      $("music-label").textContent = "Escuchando opción " + style;
+      return true;
+    } catch (error) {
+      console.error("No se pudo iniciar la música:", error);
+      await stopMusic("No se pudo cargar; revisá la conexión");
+      return false;
+    }
+  }
+
+  function previewStyle(style) {
+    if (musicOn && activeStyle === style) stopMusic();
+    else startMusic(style);
   }
 
   const volumeSlider = $("music-volume");
@@ -380,36 +411,39 @@
     volumeSlider.addEventListener("input", () => {
       musicVolume = Number(volumeSlider.value) / 100;
       volumeValue.value = volumeSlider.value + "%";
-      if (masterGainNode && audioContext && audioContext.state === "running") {
-        masterGainNode.gain.setTargetAtTime(0.68 * musicVolume, audioContext.currentTime, 0.08);
-      }
+      if (musicMaster && window.Tone) musicMaster.gain.rampTo(0.85 * musicVolume, 0.1);
     });
   }
 
+  $("select-a").addEventListener("click", () => selectMusicStyle("A"));
+  $("select-b").addEventListener("click", () => selectMusicStyle("B"));
+  $("preview-a").addEventListener("click", () => previewStyle("A"));
+  $("preview-b").addEventListener("click", () => previewStyle("B"));
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && musicOn) {
-      toggleMusic(false).then(() => {
-        $("music-label").textContent = "Música pausada";
-      });
-    }
+    if (document.hidden && musicOn) stopMusic("Música pausada");
   });
   window.addEventListener("pagehide", () => {
-    if (melodyTimer !== null) window.clearTimeout(melodyTimer);
-    melodyTimer = null;
+    if (window.Tone) { try { Tone.Transport.stop(); Tone.Transport.cancel(0); } catch (_) {} }
     musicOn = false;
-    if (audioContext && audioContext.state !== "closed") {
-      try { audioContext.close(); } catch (_) {}
-    }
-    audioContext = null;
-    masterGainNode = null;
-    noiseBuffer = null;
   });
 
-
   $("begin-button").addEventListener("click", () => showScreen("music-screen"));
-  $("music-yes").addEventListener("click", async () => { await toggleMusic(true); showScreen("question-screen"); questionIndex = 0; renderQuestion(); });
-  $("music-no").addEventListener("click", () => { if (musicOn) toggleMusic(false); showScreen("question-screen"); questionIndex = 0; renderQuestion(); });
-  $("music-toggle").addEventListener("click", () => toggleMusic());
+  $("music-yes").addEventListener("click", async () => {
+    if (!musicOn || activeStyle !== selectedStyle) await startMusic(selectedStyle);
+    showScreen("question-screen");
+    questionIndex = 0;
+    renderQuestion();
+  });
+  $("music-no").addEventListener("click", async () => {
+    if (musicOn) await stopMusic();
+    showScreen("question-screen");
+    questionIndex = 0;
+    renderQuestion();
+  });
+  $("music-toggle").addEventListener("click", () => {
+    if (musicOn) stopMusic();
+    else startMusic(selectedStyle);
+  });
   $("brand-home").addEventListener("click", (event) => { event.preventDefault(); heartMode = false; questionIndex = 0; showScreen("welcome"); });
   $("clue-continue").addEventListener("click", () => showScreen("reveal-screen"));
   $("letter-button").addEventListener("click", () => showScreen("letter-screen"));
