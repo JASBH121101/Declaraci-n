@@ -256,7 +256,11 @@
   $("brand-home").addEventListener("click", (event) => { event.preventDefault(); heartMode = false; questionIndex = 0; showScreen("welcome"); });
   $("clue-continue").addEventListener("click", () => showScreen("reveal-screen"));
   $("letter-button").addEventListener("click", () => showScreen("letter-screen"));
-  $("response-yes").addEventListener("click", (event) => {\n    event.preventDefault();\n    $("closing-note").textContent = "Esta página no envía mensajes automáticamente. Si te nace conversar, podés escribirle a JB por TikTok.";\n  });\n  $("response-thanks").addEventListener("click", () => {
+  $("response-yes").addEventListener("click", (event) => {
+    event.preventDefault();
+    $("closing-note").textContent = "Esta página no envía mensajes automáticamente. Si te nace conversar, podés escribirle a JB por TikTok.";
+  });
+  $("response-thanks").addEventListener("click", () => {
     $("closing-note").textContent = "Gracias por leer hasta aquí. Espero que te haya regalado una sonrisa. 🌹";
     $("response-thanks").textContent = "Gracias por leer 🌹";
   });
