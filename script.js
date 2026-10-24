@@ -342,10 +342,7 @@
         const highPad = makeSynthPad(reverb, "sine", { attack: 1.4, decay: 0.4, sustain: 0.5, release: 2.5 }, -27);
         $("music-label").textContent = "Cargando piano…";
         await Tone.loaded();
-        if (requestId !== musicRequestId || document.hidden) {
-          await stopMusic("Música pausada", false);
-          return false;
-        }
+        if (requestId !== musicRequestId || document.hidden) return false;
         const track = soundtrack.A;
         transportEventId = Tone.Transport.scheduleRepeat((time) => {
           const step = songStep % 64, bar = Math.floor(step / 8), slot = step % 8;
@@ -401,10 +398,7 @@
         }, "8n", 0);
       }
 
-      if (requestId !== musicRequestId || document.hidden) {
-        await stopMusic("Música pausada", false);
-        return false;
-      }
+      if (requestId !== musicRequestId || document.hidden) return false;
       musicOn = true;
       activeStyle = style;
       musicMaster.gain.setValueAtTime(0.0001, Tone.now());
@@ -415,6 +409,7 @@
       updatePreviewButtons();
       return true;
     } catch (error) {
+      if (requestId !== musicRequestId) return false;
       console.error("No se pudo iniciar la música:", error);
       await stopMusic("No se pudo cargar; revisá la conexión", false);
       return false;
