@@ -205,45 +205,90 @@
     animationFrame = window.requestAnimationFrame(animate);
   }
 
+  let melodyTimer = null;
+  let melodyStep = 0;
+
   async function toggleMusic(force) {
     const next = typeof force === "boolean" ? force : !musicOn;
     if (next === musicOn) return;
+
     if (next) {
       try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (!AudioCtx) throw new Error("Audio no disponible");
         audioContext = audioContext || new AudioCtx();
         await audioContext.resume();
+
         const master = audioContext.createGain();
-        master.gain.value = .035;
+        master.gain.value = 0.0001;
         master.connect(audioContext.destination);
+        master.gain.setTargetAtTime(0.18, audioContext.currentTime, 0.8);
         musicNodes = [master];
-        // A soft, original ambient chord made in-browser; no external track is downloaded.
-        [196, 246.94, 293.66].forEach((frequency, index) => {
+
+        // A gentle original looping melody synthesized in-browser; no external audio file is needed.
+        const melody = [523.25, 659.25, 783.99, 659.25, 587.33, 698.46, 783.99, 698.46,
+                        523.25, 659.25, 880.00, 783.99, 698.46, 659.25, 587.33, 523.25];
+        const bass = [130.81, 146.83, 110.00, 98.00];
+        const playNote = (frequency, startAt, duration, volume, type) => {
           const osc = audioContext.createOscillator();
           const gain = audioContext.createGain();
-          osc.type = index === 1 ? "sine" : "triangle";
-          osc.frequency.value = frequency;
-          gain.gain.value = index === 0 ? .28 : .14;
-          osc.connect(gain);
+          const tone = audioContext.createBiquadFilter();
+          osc.type = type || "sine";
+          osc.frequency.setValueAtTime(frequency, startAt);
+          tone.type = "lowpass";
+          tone.frequency.value = 1800;
+          gain.gain.setValueAtTime(0.0001, startAt);
+          gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+          osc.connect(tone);
+          tone.connect(gain);
           gain.connect(master);
-          osc.start();
-          musicNodes.push(osc, gain);
-        });
+          osc.start(startAt);
+          osc.stop(startAt + duration + 0.04);
+          musicNodes.push(osc, gain, tone);
+        };
+        const scheduleMelody = () => {
+          if (!musicOn || !audioContext || audioContext.state !== "running") return;
+          const now = audioContext.currentTime + 0.08;
+          const beat = 0.48;
+          for (let i = 0; i < melody.length; i++) {
+            const step = (melodyStep + i) % melody.length;
+            playNote(melody[step], now + i * beat, beat * 1.7, 0.12, "sine");
+            if (i % 4 === 0) {
+              const bassIndex = Math.floor(step / 4) % bass.length;
+              playNote(bass[bassIndex], now + i * beat, beat * 3.4, 0.055, "triangle");
+            }
+          }
+          melodyStep = (melodyStep + melody.length) % melody.length;
+          melodyTimer = window.setTimeout(scheduleMelody, melody.length * beat * 1000 - 80);
+        };
         musicOn = true;
+        scheduleMelody();
         $("music-toggle").setAttribute("aria-pressed", "true");
         $("music-label").textContent = "Música activada";
       } catch (error) {
         $("music-label").textContent = "Audio no disponible";
       }
     } else {
+      musicOn = false;
+      if (melodyTimer !== null) {
+        window.clearTimeout(melodyTimer);
+        melodyTimer = null;
+      }
       if (audioContext && audioContext.state !== "closed") {
-        musicNodes.forEach(node => { try { if (node.stop) node.stop(); } catch (_) {} });
-        try { audioContext.close(); } catch (_) {}
+        try {
+          const now = audioContext.currentTime;
+          musicNodes.forEach(node => {
+            if (node && typeof node.stop === "function") {
+              try { node.stop(now); } catch (_) {}
+            }
+          });
+          await audioContext.close();
+        } catch (_) {}
       }
       audioContext = null;
       musicNodes = [];
-      musicOn = false;
+      melodyStep = 0;
       $("music-toggle").setAttribute("aria-pressed", "false");
       $("music-label").textContent = "Música apagada";
     }
