@@ -212,6 +212,7 @@
   let musicVolume = 0.8;
   let transportEventId = null;
   let songStep = 0;
+  let musicRequestId = 0;
 
   const soundtrack = {
     A: {
@@ -283,7 +284,8 @@
     return synth;
   }
 
-  async function stopMusic(label = "Música apagada") {
+  async function stopMusic(label = "Música apagada", invalidatePending = true) {
+    if (invalidatePending) musicRequestId += 1;
     musicOn = false;
     activeStyle = null;
     if (window.Tone) {
@@ -305,7 +307,8 @@
   async function startMusic(style) {
     if (!window.Tone) { $("music-label").textContent = "No se pudo cargar el audio"; return false; }
     if (musicOn && activeStyle === style) return true;
-    await stopMusic("Preparando música…");
+    const requestId = ++musicRequestId;
+    await stopMusic("Preparando música…", false);
     selectMusicStyle(style);
     $("music-label").textContent = "Cargando " + soundtrack[style].name + "…";
     try {
@@ -339,6 +342,10 @@
         const highPad = makeSynthPad(reverb, "sine", { attack: 1.4, decay: 0.4, sustain: 0.5, release: 2.5 }, -27);
         $("music-label").textContent = "Cargando piano…";
         await Tone.loaded();
+        if (requestId !== musicRequestId || document.hidden) {
+          await stopMusic("Música pausada", false);
+          return false;
+        }
         const track = soundtrack.A;
         transportEventId = Tone.Transport.scheduleRepeat((time) => {
           const step = songStep % 64, bar = Math.floor(step / 8), slot = step % 8;
@@ -394,6 +401,10 @@
         }, "8n", 0);
       }
 
+      if (requestId !== musicRequestId || document.hidden) {
+        await stopMusic("Música pausada", false);
+        return false;
+      }
       musicOn = true;
       activeStyle = style;
       musicMaster.gain.setValueAtTime(0.0001, Tone.now());
@@ -405,7 +416,7 @@
       return true;
     } catch (error) {
       console.error("No se pudo iniciar la música:", error);
-      await stopMusic("No se pudo cargar; revisá la conexión");
+      await stopMusic("No se pudo cargar; revisá la conexión", false);
       return false;
     }
   }
@@ -432,11 +443,10 @@
   $("preview-a").addEventListener("click", () => previewStyle("A"));
   $("preview-b").addEventListener("click", () => previewStyle("B"));
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && musicOn) stopMusic("Música pausada");
+    if (document.hidden) stopMusic("Música pausada", true);
   });
   window.addEventListener("pagehide", () => {
-    if (window.Tone) { try { Tone.Transport.stop(); Tone.Transport.cancel(0); } catch (_) {} }
-    musicOn = false;
+    stopMusic("Música pausada", true);
   });
 
   $("begin-button").addEventListener("click", () => showScreen("music-screen"));
