@@ -10,7 +10,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <script src="script.js?v=5" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/tone@15.1.22/build/Tone.js"></script>
+  <script src="script.js?v=6" defer></script>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -38,16 +39,39 @@
       <div class="scene-number">01 <span>— ANTES DE EMPEZAR</span></div>
       <p class="eyebrow">A TU MANERA</p>
       <h2 id="music-title">¿Le ponemos música<br><em>a este momento?</em></h2>
-      <p class="section-copy">Una melodía retro y romántica con un ritmo latino suave. Es totalmente opcional.</p>
+      <p class="section-copy">Dos ambientes originales para comparar: romance cinematográfico o balada ochentera. Elegí y escuchá ambos antes de decidir.</p>
       <div class="music-disc" aria-hidden="true"><span>♡</span><i></i><i></i><i></i></div>
       <div class="volume-control">
         <div class="volume-label-row"><label for="music-volume">Volumen</label><output id="volume-value" for="music-volume">85%</output></div>
         <input id="music-volume" type="range" min="0" max="100" value="85" step="1" aria-label="Volumen de la música">
         <p class="volume-note">La música se detiene al salir de esta pestaña.</p>
       </div>
+      <div class="music-options" role="group" aria-label="Elegí el estilo musical">
+        <article class="music-option selected" id="music-option-a">
+          <button class="music-option-select" id="select-a" type="button" aria-pressed="true">
+            <span class="option-badge">A</span>
+            <span class="option-copy"><strong>Romance de película</strong><small>Piano cálido y cuerdas emotivas</small></span>
+            <span class="option-check" aria-hidden="true">♡</span>
+          </button>
+          <button class="preview-button" id="preview-a" type="button">▶ Escuchar opción A</button>
+        </article>
+        <article class="music-option" id="music-option-b">
+          <button class="music-option-select" id="select-b" type="button" aria-pressed="false">
+            <span class="option-badge">B</span>
+            <span class="option-copy"><strong>Balada ochentera</strong><small>Sintetizadores y ritmo más intenso</small></span>
+            <span class="option-check" aria-hidden="true">♡</span>
+          </button>
+          <button class="preview-button" id="preview-b" type="button">▶ Escuchar opción B</button>
+        </article>
+      </div>
+      <div class="volume-control">
+        <div class="volume-label-row"><label for="music-volume">Volumen</label><output id="volume-value" for="music-volume">80%</output></div>
+        <input id="music-volume" type="range" min="0" max="100" value="80" step="1" aria-label="Volumen de la música">
+        <p class="volume-note">Al salir de esta pestaña, la música se detiene.</p>
+      </div>
       <div class="button-stack">
-        <button class="primary-button" id="music-yes" type="button">Sí, activar música ♫</button>
-        <button class="secondary-button" id="music-no" type="button">Prefiero continuar en silencio</button>
+        <button class="primary-button" id="music-yes" type="button">Usar esta versión y continuar <span aria-hidden="true">↗</span></button>
+        <button class="secondary-button" id="music-no" type="button">Continuar sin música</button>
       </div>
     </section>
 
@@ -111,6 +135,5 @@
       <footer class="page-footer">Una historia pequeña, hecha con sinceridad. <span>— JB</span></footer>
     </section>
   </main>
-  <audio id="background-music" loop preload="none"></audio>
 </body>
 </html>
