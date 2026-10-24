@@ -245,7 +245,7 @@
           gain.connect(master);
           osc.start(startAt);
           osc.stop(startAt + duration + 0.04);
-          musicNodes.push(osc, gain, tone);
+          // Notes stop themselves; keep only the master node to avoid retaining every loop's notes.
         };
         const scheduleMelody = () => {
           if (!musicOn || !audioContext || audioContext.state !== "running") return;
