@@ -262,6 +262,16 @@
     $("music-option-b").classList.toggle("selected", style === "B");
     $("select-a").setAttribute("aria-pressed", String(style === "A"));
     $("select-b").setAttribute("aria-pressed", String(style === "B"));
+    updatePreviewButtons();
+  }
+
+  function updatePreviewButtons() {
+    ["A", "B"].forEach(style => {
+      const button = $("preview-" + style.toLowerCase());
+      const playing = musicOn && activeStyle === style;
+      button.classList.toggle("is-playing", playing);
+      button.textContent = playing ? "■ Detener opción " + style : "▶ Escuchar opción " + style;
+    });
   }
 
   function trackNode(node) { musicNodes.push(node); return node; }
@@ -289,6 +299,7 @@
     songStep = 0;
     $("music-toggle").setAttribute("aria-pressed", "false");
     $("music-label").textContent = label;
+    updatePreviewButtons();
   }
 
   async function startMusic(style) {
@@ -390,6 +401,7 @@
       Tone.Transport.start("+0.08");
       $("music-toggle").setAttribute("aria-pressed", "true");
       $("music-label").textContent = "Escuchando opción " + style;
+      updatePreviewButtons();
       return true;
     } catch (error) {
       console.error("No se pudo iniciar la música:", error);
