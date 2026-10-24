@@ -4,3 +4,24 @@
 .volume-label-row output{color:#f58fa1;font-variant-numeric:tabular-nums}
 #music-volume{display:block;width:100%;height:22px;margin:0;accent-color:#ed4564;cursor:pointer}
 .volume-note{font-size:.68rem;line-height:1.5;color:#a88790;margin:7px 0 0}
+
+.music-options{display:grid;grid-template-columns:1fr;gap:12px;width:min(100%,410px);margin:0 0 18px;text-align:left}
+.music-option{border:1px solid rgba(255,125,146,.22);border-radius:16px;padding:10px;background:linear-gradient(135deg,rgba(255,255,255,.045),rgba(255,255,255,.015));transition:border-color .2s ease,background .2s ease,box-shadow .2s ease}
+.music-option.selected{border-color:#f16d86;background:linear-gradient(135deg,rgba(200,37,70,.19),rgba(255,255,255,.025));box-shadow:0 0 24px rgba(212,43,75,.10)}
+.music-option-select{width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:transparent;border:0;color:#fff5f5;padding:6px 5px 11px}
+.option-badge{flex:0 0 36px;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(255,126,149,.4);color:#ff9aaa;font-family:var(--serif);font-size:1.25rem}
+.option-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}
+.option-copy strong{font-size:.84rem;font-weight:600}
+.option-copy small{color:#bda0a8;font-size:.7rem;line-height:1.4}
+.option-check{color:#f78a9d;font-size:1.1rem;opacity:.45}
+.music-option.selected .option-check{opacity:1}
+.preview-button{width:100%;min-height:38px;border-radius:10px;border:1px solid rgba(255,125,146,.22);background:rgba(8,4,7,.25);color:#f3c5ce;font-size:.74rem;font-weight:600}
+.preview-button:hover,.preview-button.is-playing{background:rgba(211,43,76,.18);border-color:#ed7188;color:white}
+.volume-control{width:min(100%,410px);margin:0 0 18px;text-align:left;padding:12px 16px 10px;border:1px solid rgba(255,125,146,.16);border-radius:14px;background:rgba(255,255,255,.025)}
+.volume-label-row{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#f1dce0;font-size:.78rem;margin-bottom:8px}
+.volume-label-row output{color:#f58fa1;font-variant-numeric:tabular-nums}
+#music-volume{display:block;width:100%;height:22px;margin:0;accent-color:#ed4564;cursor:pointer}
+.volume-note{font-size:.68rem;line-height:1.5;color:#a88790;margin:7px 0 0}
+.button-stack{width:min(100%,410px)}
+.button-stack button{width:100%}
+@media(min-width:560px){.music-options{grid-template-columns:1fr 1fr;align-items:stretch}.music-option{display:flex;flex-direction:column;justify-content:space-between}}
