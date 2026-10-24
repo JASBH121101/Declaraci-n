@@ -222,13 +222,13 @@
         const master = audioContext.createGain();
         master.gain.value = 0.0001;
         master.connect(audioContext.destination);
-        master.gain.setTargetAtTime(0.18, audioContext.currentTime, 0.8);
+        master.gain.setTargetAtTime(0.42, audioContext.currentTime, 0.45);
         musicNodes = [master];
 
         // A gentle original looping melody synthesized in-browser; no external audio file is needed.
-        const melody = [523.25, 659.25, 783.99, 659.25, 587.33, 698.46, 783.99, 698.46,
-                        523.25, 659.25, 880.00, 783.99, 698.46, 659.25, 587.33, 523.25];
-        const bass = [130.81, 146.83, 110.00, 98.00];
+        const melody = [392.00, 493.88, 587.33, 659.25, 587.33, 493.88, 440.00, 392.00,
+                        349.23, 440.00, 523.25, 587.33, 523.25, 440.00, 392.00, 349.23];
+        const bass = [98.00, 110.00, 87.31, 82.41];
         const playNote = (frequency, startAt, duration, volume, type) => {
           const osc = audioContext.createOscillator();
           const gain = audioContext.createGain();
@@ -250,13 +250,13 @@
         const scheduleMelody = () => {
           if (!musicOn || !audioContext || audioContext.state !== "running") return;
           const now = audioContext.currentTime + 0.08;
-          const beat = 0.48;
+          const beat = 0.34;
           for (let i = 0; i < melody.length; i++) {
             const step = (melodyStep + i) % melody.length;
-            playNote(melody[step], now + i * beat, beat * 1.7, 0.12, "sine");
+            playNote(melody[step], now + i * beat, beat * 1.4, 0.22, "triangle");
             if (i % 4 === 0) {
               const bassIndex = Math.floor(step / 4) % bass.length;
-              playNote(bass[bassIndex], now + i * beat, beat * 3.4, 0.055, "triangle");
+              playNote(bass[bassIndex], now + i * beat, beat * 3.0, 0.12, "sawtooth");
             }
           }
           melodyStep = (melodyStep + melody.length) % melody.length;
