@@ -250,10 +250,9 @@
   }
 
   function movePlayerToFloating() {
-    if (!playerShell || nativeAudioMode) return;
-    if (playerShell.parentElement !== document.body) document.body.appendChild(playerShell);
-    playerShell.classList.add("is-floating");
-    document.body.classList.add("music-floating");
+    // No floating player UI: music should accompany the story without covering it.
+    // Native audio is controlled by the header; Spotify remains in the music screen.
+    return;
   }
 
   function movePlayerToMusicScreen() {
