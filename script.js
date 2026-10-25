@@ -70,6 +70,10 @@
       screen.setAttribute("aria-hidden", String(!active));
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
+    if (id === "music-screen") {
+      movePlayerToMusicScreen();
+      initializeYouTubePlayer();
+    }
     if (id === "reveal-screen") {
       heartMode = true;
       $("heart-stage").classList.add("celebrate");
@@ -204,245 +208,181 @@
     animationFrame = window.requestAnimationFrame(animate);
   }
 
-  let selectedStyle = "A";
-  let activeStyle = null;
+  const SONG_ID = "Ce4oeTiv3Xs";
+  const ROMANTIC_START_SECONDS = 116;
+  let youtubePlayer = null;
+  let youtubeApiRequested = false;
+  let youtubeReady = false;
   let musicOn = false;
-  let musicNodes = [];
-  let musicMaster = null;
-  let musicVolume = 0.8;
-  let transportEventId = null;
-  let songStep = 0;
-  let musicRequestId = 0;
+  let musicVolume = 75;
+  let resolvePlayerReady;
+  const playerReadyPromise = new Promise(resolve => { resolvePlayerReady = resolve; });
+  const playerShell = $("song-player-shell");
+  const playerSlot = $("song-player-slot");
 
-  const soundtrack = {
-    A: {
-      name: "Romance de película", bpm: 72,
-      chords: [
-        ["C3","G3","B3","E4","G4"], ["B2","G3","A3","D4","G4"],
-        ["A2","E3","G3","C4","E4"], ["G2","D3","G3","B3","D4"],
-        ["F2","C3","E3","A3","C4"], ["E2","C3","E3","G3","C4"],
-        ["D2","A2","C3","F3","A3"], ["G2","D3","F#3","A3","D4"]
-      ],
-      arpeggios: [
-        ["C3","E4","G3","B4","G4","E4","B3","G4"],
-        ["B2","D4","G3","A4","G4","D4","A3","G4"],
-        ["A2","C4","E3","G4","E4","C4","G3","E4"],
-        ["G2","B3","D3","G4","D4","B3","G3","D4"],
-        ["F2","A3","C3","E4","C4","A3","E3","C4"],
-        ["E2","G3","C3","E4","C4","G3","E3","C4"],
-        ["D2","F3","A2","C4","A3","F3","C3","A3"],
-        ["G2","B3","D3","F#4","D4","B3","A3","D4"]
-      ],
-      melody: [
-        ["G4",null,"B4","C5",null,"B4","G4",null],
-        ["F#4",null,"A4","B4",null,"A4","F#4",null],
-        ["E4",null,"G4","A4","B4",null,"A4",null],
-        ["D4",null,"G4","A4",null,"G4","D4",null],
-        ["C4",null,"E4","G4",null,"E4","C4",null],
-        ["B3",null,"E4","G4",null,"E4","B3",null],
-        ["A3",null,"D4","F#4",null,"E4","D4",null],
-        ["B3",null,"D4","G4",null,"F#4","D4",null]
-      ]
-    },
-    B: {
-      name: "Balada ochentera", bpm: 96,
-      chords: [["A3","C4","E4","G4"],["F3","A3","C4","E4"],["C3","E3","G3","C4"],["G3","B3","D4","G4"]],
-      bass: ["A1","F1","C2","G1"],
-      melody: [
-        ["E5",null,"G5","A5",null,"G5","E5",null],
-        ["C5",null,"E5","G5",null,"E5","C5",null],
-        ["G4",null,"C5","E5",null,"D5","C5",null],
-        ["D5",null,"G5","A5",null,"G5","D5",null]
-      ]
-    }
-  };
-
-  function selectMusicStyle(style) {
-    selectedStyle = style;
-    $("music-option-a").classList.toggle("selected", style === "A");
-    $("music-option-b").classList.toggle("selected", style === "B");
-    $("select-a").setAttribute("aria-pressed", String(style === "A"));
-    $("select-b").setAttribute("aria-pressed", String(style === "B"));
-    updatePreviewButtons();
-  }
-
-  function updatePreviewButtons() {
-    ["A", "B"].forEach(style => {
-      const button = $("preview-" + style.toLowerCase());
-      const playing = musicOn && activeStyle === style;
+  function updateMusicUI() {
+    const button = $("preview-song");
+    const state = youtubePlayer && youtubeReady && window.YT ? youtubePlayer.getPlayerState() : -1;
+    const playing = Boolean(window.YT && state === window.YT.PlayerState.PLAYING);
+    const paused = Boolean(window.YT && state === window.YT.PlayerState.PAUSED);
+    musicOn = playing;
+    if (button) {
       button.classList.toggle("is-playing", playing);
-      button.textContent = playing ? "■ Detener opción " + style : "▶ Escuchar opción " + style;
-    });
-  }
-
-  function trackNode(node) { musicNodes.push(node); return node; }
-
-  function makeSynthPad(destination, type, envelope, volume) {
-    const synth = trackNode(new Tone.PolySynth(Tone.Synth, { oscillator: { type }, envelope }));
-    synth.volume.value = volume;
-    synth.connect(destination);
-    return synth;
-  }
-
-  async function stopMusic(label = "Música apagada", invalidatePending = true) {
-    if (invalidatePending) musicRequestId += 1;
-    musicOn = false;
-    activeStyle = null;
-    if (window.Tone) {
-      try { Tone.Transport.stop(); Tone.Transport.cancel(0); } catch (_) {}
+      button.textContent = playing ? "■ Pausar canción" : paused ? "▶ Reanudar canción" : "▶ Escuchar fragmento romántico";
+      button.disabled = !youtubeReady;
     }
-    if (musicMaster && window.Tone) {
-      try { musicMaster.gain.setValueAtTime(0.0001, Tone.now()); } catch (_) {}
-    }
-    musicNodes.forEach(node => { try { if (node && typeof node.dispose === "function") node.dispose(); } catch (_) {} });
-    musicNodes = [];
-    musicMaster = null;
-    transportEventId = null;
-    songStep = 0;
-    $("music-toggle").setAttribute("aria-pressed", "false");
-    $("music-label").textContent = label;
-    updatePreviewButtons();
+    $("music-toggle").setAttribute("aria-pressed", String(playing));
+    $("music-label").textContent = playing ? "José José sonando" : paused ? "Música en pausa" : "Música apagada";
+    if ($("music-yes")) $("music-yes").disabled = !youtubeReady;
   }
 
-  async function startMusic(style) {
-    if (!window.Tone) { $("music-label").textContent = "No se pudo cargar el audio"; return false; }
-    if (musicOn && activeStyle === style) return true;
-    const requestId = ++musicRequestId;
-    await stopMusic("Preparando música…", false);
-    selectMusicStyle(style);
-    $("music-label").textContent = "Cargando " + soundtrack[style].name + "…";
-    try {
-      await Tone.start();
-      Tone.Transport.stop();
-      Tone.Transport.cancel(0);
-      Tone.Transport.position = "0:0:0";
-      Tone.Transport.bpm.value = soundtrack[style].bpm;
+  function movePlayerToFloating() {
+    if (!playerShell) return;
+    if (playerShell.parentElement !== document.body) document.body.appendChild(playerShell);
+    playerShell.classList.add("is-floating");
+    document.body.classList.add("music-floating");
+  }
 
-      const master = trackNode(new Tone.Gain(0.0001).toDestination());
-      musicMaster = master;
-      const reverb = trackNode(new Tone.Reverb({ decay: style === "A" ? 4.5 : 2.8, wet: style === "A" ? 0.32 : 0.22 }));
-      await reverb.ready;
-      reverb.connect(master);
+  function movePlayerToMusicScreen() {
+    if (!playerShell || !playerSlot) return;
+    if (playerShell.parentElement !== playerSlot) playerSlot.appendChild(playerShell);
+    playerShell.classList.remove("is-floating");
+    document.body.classList.remove("music-floating");
+  }
 
-      if (style === "A") {
-        const delay = trackNode(new Tone.FeedbackDelay("8n", 0.12));
-        delay.connect(reverb);
-        const piano = trackNode(new Tone.Sampler({
-          urls: {
-            C3: "C3.mp3", "D#3": "Ds3.mp3", "F#3": "Fs3.mp3", A3: "A3.mp3",
-            C4: "C4.mp3", "D#4": "Ds4.mp3", "F#4": "Fs4.mp3", A4: "A4.mp3",
-            C5: "C5.mp3", "D#5": "Ds5.mp3", "F#5": "Fs5.mp3", A5: "A5.mp3"
+  function initializeYouTubePlayer() {
+    if (youtubePlayer || youtubeApiRequested) return;
+    youtubeApiRequested = true;
+    window.onYouTubeIframeAPIReady = () => {
+      youtubePlayer = new window.YT.Player("youtube-player", {
+        width: "384",
+        height: "216",
+        videoId: SONG_ID,
+        playerVars: {
+          autoplay: 0,
+          controls: 1,
+          start: ROMANTIC_START_SECONDS,
+          playsinline: 1,
+          rel: 0,
+          enablejsapi: 1,
+          origin: window.location.origin
+        },
+        events: {
+          onReady: event => {
+            youtubeReady = true;
+            event.target.setVolume(musicVolume);
+            $("music-status").textContent = "Listo. Podés escuchar el fragmento o continuar.";
+            resolvePlayerReady(event.target);
+            updateMusicUI();
           },
-          baseUrl: "https://tonejs.github.io/audio/salamander/",
-          attack: 0.02, release: 1.1
-        }));
-        piano.volume.value = -1;
-        piano.connect(delay);
-        const strings = makeSynthPad(reverb, "triangle", { attack: 1.15, decay: 0.4, sustain: 0.65, release: 2.2 }, -20);
-        const highPad = makeSynthPad(reverb, "sine", { attack: 1.4, decay: 0.4, sustain: 0.5, release: 2.5 }, -27);
-        $("music-label").textContent = "Cargando piano…";
-        await Tone.loaded();
-        if (requestId !== musicRequestId || document.hidden) return false;
-        const track = soundtrack.A;
-        transportEventId = Tone.Transport.scheduleRepeat((time) => {
-          const step = songStep % 64, bar = Math.floor(step / 8), slot = step % 8;
-          const chord = track.chords[bar];
-          if (slot === 0) {
-            strings.triggerAttackRelease(chord.slice(1), "1m", time, 0.17);
-            highPad.triggerAttackRelease([chord[2], chord[4]], "1m", time, 0.08);
+          onStateChange: event => {
+            if (!window.YT) return;
+            if (event.data === window.YT.PlayerState.PLAYING) {
+              $("music-status").textContent = "Reproduciendo desde el fragmento romántico.";
+            } else if (event.data === window.YT.PlayerState.PAUSED) {
+              $("music-status").textContent = "Canción en pausa.";
+            } else if (event.data === window.YT.PlayerState.ENDED) {
+              $("music-status").textContent = "La canción terminó.";
+            }
+            updateMusicUI();
+          },
+          onError: () => {
+            $("music-status").textContent = "YouTube no permitió reproducir este video aquí. Podés abrirlo directamente en YouTube.";
+            $("music-status").insertAdjacentHTML("beforeend", ' <a href="https://youtu.be/Ce4oeTiv3Xs" target="_blank" rel="noopener noreferrer">Abrir canción</a>');
+            $("preview-song").disabled = true;
+            $("music-yes").disabled = true;
           }
-          piano.triggerAttackRelease(track.arpeggios[bar][slot], "8n", time, slot === 0 || slot === 4 ? 0.78 : 0.58);
-          const topNote = track.melody[bar][slot];
-          if (topNote) piano.triggerAttackRelease(topNote, "4n", time, 0.55);
-          songStep = (songStep + 1) % 64;
-        }, "8n", 0);
-      } else {
-        const chorus = trackNode(new Tone.Chorus(2.2, 2.8, 0.34).start());
-        chorus.connect(reverb);
-        const filter = trackNode(new Tone.Filter({ frequency: 1800, type: "lowpass", rolloff: -24 }));
-        filter.connect(chorus);
-        const pad = makeSynthPad(filter, "fatsawtooth", { attack: 0.35, decay: 0.35, sustain: 0.55, release: 1.5 }, -22);
-        const electricPiano = makeSynthPad(reverb, "square", { attack: 0.012, decay: 0.22, sustain: 0.12, release: 0.28 }, -13);
-        const bass = trackNode(new Tone.MonoSynth({
-          oscillator: { type: "sawtooth" },
-          filter: { type: "lowpass", frequency: 260, Q: 1.1 },
-          envelope: { attack: 0.02, decay: 0.2, sustain: 0.24, release: 0.12 },
-          filterEnvelope: { attack: 0.01, decay: 0.15, sustain: 0.08, release: 0.1, baseFrequency: 75, octaves: 2 }
-        }));
-        bass.volume.value = -8; bass.connect(master);
-        const lead = trackNode(new Tone.Synth({ oscillator: { type: "fatsawtooth" }, envelope: { attack: 0.025, decay: 0.14, sustain: 0.3, release: 0.35 } }));
-        lead.volume.value = -9; lead.connect(chorus);
-        const kick = trackNode(new Tone.MembraneSynth({ pitchDecay: 0.035, octaves: 5, envelope: { attack: 0.001, decay: 0.22, sustain: 0, release: 0.01 } }));
-        kick.volume.value = -6; kick.connect(master);
-        const snare = trackNode(new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.001, decay: 0.11, sustain: 0 } }));
-        snare.volume.value = -19; snare.connect(master);
-        const hat = trackNode(new Tone.MetalSynth({
-          frequency: 360, envelope: { attack: 0.001, decay: 0.065, release: 0.015 },
-          harmonicity: 5.1, modulationIndex: 28, resonance: 2600, octaves: 1.4
-        }));
-        hat.volume.value = -25; hat.connect(master);
-        const track = soundtrack.B;
-        const roots = track.bass;
-        transportEventId = Tone.Transport.scheduleRepeat((time) => {
-          const step = songStep % 64, bar = Math.floor(step / 8), slot = step % 8;
-          const chord = track.chords[bar % track.chords.length];
-          if (slot === 0) pad.triggerAttackRelease(chord, "1m", time, 0.18);
-          if ([0,3,4,7].includes(slot)) electricPiano.triggerAttackRelease(chord.slice(1), "8n", time, slot === 0 || slot === 4 ? 0.5 : 0.34);
-          if ([0,3,4,7].includes(slot)) bass.triggerAttackRelease(roots[bar % roots.length], "8n", time, slot === 0 || slot === 4 ? 0.72 : 0.52);
-          const leadNote = track.melody[bar % track.melody.length][slot];
-          if (leadNote) lead.triggerAttackRelease(leadNote, "8n", time, 0.34);
-          if ([0,4].includes(slot)) kick.triggerAttackRelease("C1", "8n", time, 0.78);
-          if ([2,6].includes(slot)) snare.triggerAttackRelease("16n", time, 0.46);
-          hat.triggerAttackRelease("16n", time, slot % 2 ? 0.18 : 0.25);
-          songStep = (songStep + 1) % 64;
-        }, "8n", 0);
-      }
+        }
+      });
+    };
+    const apiScript = document.createElement("script");
+    apiScript.src = "https://www.youtube.com/iframe_api";
+    apiScript.async = true;
+    document.head.appendChild(apiScript);
+  }
 
-      if (requestId !== musicRequestId || document.hidden) return false;
-      musicOn = true;
-      activeStyle = style;
-      musicMaster.gain.setValueAtTime(0.0001, Tone.now());
-      musicMaster.gain.linearRampToValueAtTime(0.85 * musicVolume, Tone.now() + 0.6);
-      Tone.Transport.start("+0.08");
-      $("music-toggle").setAttribute("aria-pressed", "true");
-      $("music-label").textContent = "Escuchando opción " + style;
-      updatePreviewButtons();
-      return true;
-    } catch (error) {
-      if (requestId !== musicRequestId) return false;
-      console.error("No se pudo iniciar la música:", error);
-      await stopMusic("No se pudo cargar; revisá la conexión", false);
+  function playRomanticFragment() {
+    if (!youtubePlayer || !youtubeReady) {
+      $("music-status").textContent = "El reproductor todavía está cargando. Esperá un momento.";
       return false;
     }
+    const state = youtubePlayer.getPlayerState();
+    if (state === window.YT.PlayerState.PLAYING) {
+      youtubePlayer.pauseVideo();
+      return true;
+    }
+    if (state === window.YT.PlayerState.PAUSED) {
+      youtubePlayer.playVideo();
+      return true;
+    }
+    youtubePlayer.loadVideoById({
+      videoId: SONG_ID,
+      startSeconds: ROMANTIC_START_SECONDS
+    });
+    return true;
   }
 
-  function previewStyle(style) {
-    if (musicOn && activeStyle === style) stopMusic();
-    else startMusic(style);
+  function stopMusic() {
+    if (youtubePlayer && youtubeReady) youtubePlayer.stopVideo();
+    musicOn = false;
+    if (youtubeReady) updateMusicUI();
+    else {
+      $("music-toggle").setAttribute("aria-pressed", "false");
+      $("music-label").textContent = "Música apagada";
+    }
+    $("music-status").textContent = "Música apagada.";
   }
+
+  $("preview-song").addEventListener("click", playRomanticFragment);
 
   const volumeSlider = $("music-volume");
   const volumeValue = $("volume-value");
   if (volumeSlider && volumeValue) {
-    musicVolume = Number(volumeSlider.value) / 100;
-    volumeValue.value = volumeSlider.value + "%";
+    musicVolume = Number(volumeSlider.value);
+    volumeValue.value = musicVolume + "%";
     volumeSlider.addEventListener("input", () => {
-      musicVolume = Number(volumeSlider.value) / 100;
-      volumeValue.value = volumeSlider.value + "%";
-      if (musicMaster && window.Tone) musicMaster.gain.rampTo(0.85 * musicVolume, 0.1);
+      musicVolume = Number(volumeSlider.value);
+      volumeValue.value = musicVolume + "%";
+      if (youtubePlayer && youtubeReady) youtubePlayer.setVolume(musicVolume);
     });
   }
 
-  $("select-a").addEventListener("click", () => selectMusicStyle("A"));
-  $("select-b").addEventListener("click", () => selectMusicStyle("B"));
-  $("preview-a").addEventListener("click", () => previewStyle("A"));
-  $("preview-b").addEventListener("click", () => previewStyle("B"));
+  $("music-yes").addEventListener("click", () => {
+    if (!youtubePlayer || !youtubeReady) return;
+    if (youtubePlayer.getPlayerState() !== window.YT.PlayerState.PLAYING) {
+      const state = youtubePlayer.getPlayerState();
+      if (state === window.YT.PlayerState.PAUSED) youtubePlayer.playVideo();
+      else youtubePlayer.loadVideoById({ videoId: SONG_ID, startSeconds: ROMANTIC_START_SECONDS });
+    }
+    movePlayerToFloating();
+    showScreen("question-screen");
+    questionIndex = 0;
+    renderQuestion();
+  });
+
+  $("music-no").addEventListener("click", () => {
+    stopMusic();
+    movePlayerToMusicScreen();
+    showScreen("question-screen");
+    questionIndex = 0;
+    renderQuestion();
+  });
+
+  $("music-toggle").addEventListener("click", () => {
+    if (!youtubePlayer || !youtubeReady) {
+      $("music-label").textContent = "Preparando reproductor…";
+      return;
+    }
+    const state = youtubePlayer.getPlayerState();
+    if (state === window.YT.PlayerState.PLAYING) youtubePlayer.pauseVideo();
+    else if (state === window.YT.PlayerState.PAUSED) youtubePlayer.playVideo();
+    else youtubePlayer.loadVideoById({ videoId: SONG_ID, startSeconds: ROMANTIC_START_SECONDS });
+  });
+
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) stopMusic("Música pausada", true);
+    if (document.hidden) stopMusic();
   });
-  window.addEventListener("pagehide", () => {
-    stopMusic("Música pausada", true);
-  });
+  window.addEventListener("pagehide", stopMusic);
 
   $("begin-button").addEventListener("click", () => showScreen("music-screen"));
   $("music-yes").addEventListener("click", async () => {
