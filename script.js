@@ -72,7 +72,7 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
     if (id === "music-screen") {
       movePlayerToMusicScreen();
-      initializeYouTubePlayer();
+      initializeSpotifyPlayer();
     }
     if (id === "reveal-screen") {
       heartMode = true;
@@ -208,32 +208,17 @@
     animationFrame = window.requestAnimationFrame(animate);
   }
 
-  const SONG_ID = "Ce4oeTiv3Xs";
-  const ROMANTIC_START_SECONDS = 116;
-  let youtubePlayer = null;
-  let youtubeApiRequested = false;
-  let youtubeReady = false;
-  let musicOn = false;
-  let musicVolume = 75;
-  let resolvePlayerReady;
-  const playerReadyPromise = new Promise(resolve => { resolvePlayerReady = resolve; });
-  const playerShell = $("song-player-shell");
-  const playerSlot = $("song-player-slot");
+  const SPOTIFY_TRACK_URI = "spotify:track:3sk1Pl8mAIv1GtIpea2Jwn";
+  let spotifyApiRequested = false;
+  let spotifyController = null;
+  let spotifyReady = false;
+  let spotifyPlaying = false;
+  const playerShell = $("spotify-player-shell");
+  const playerSlot = $("spotify-player-slot");
 
   function updateMusicUI() {
-    const button = $("preview-song");
-    const state = youtubePlayer && youtubeReady && window.YT ? youtubePlayer.getPlayerState() : -1;
-    const playing = Boolean(window.YT && state === window.YT.PlayerState.PLAYING);
-    const paused = Boolean(window.YT && state === window.YT.PlayerState.PAUSED);
-    musicOn = playing;
-    if (button) {
-      button.classList.toggle("is-playing", playing);
-      button.textContent = playing ? "■ Pausar canción" : paused ? "▶ Reanudar canción" : "▶ Escuchar fragmento romántico";
-      button.disabled = !youtubeReady;
-    }
-    $("music-toggle").setAttribute("aria-pressed", String(playing));
-    $("music-label").textContent = playing ? "José José sonando" : paused ? "Música en pausa" : "Música apagada";
-    if ($("music-yes")) $("music-yes").disabled = !youtubeReady;
+    $("music-toggle").setAttribute("aria-pressed", String(spotifyPlaying));
+    $("music-label").textContent = spotifyPlaying ? "Por amarte así ♪" : "Música apagada";
   }
 
   function movePlayerToFloating() {
@@ -250,109 +235,58 @@
     document.body.classList.remove("music-floating");
   }
 
-  function initializeYouTubePlayer() {
-    if (youtubePlayer || youtubeApiRequested) return;
-    youtubeApiRequested = true;
-    window.onYouTubeIframeAPIReady = () => {
-      youtubePlayer = new window.YT.Player("youtube-player", {
-        width: "384",
-        height: "216",
-        videoId: SONG_ID,
-        playerVars: {
-          autoplay: 0,
-          controls: 1,
-          start: ROMANTIC_START_SECONDS,
-          playsinline: 1,
-          rel: 0,
-          enablejsapi: 1,
-          origin: window.location.origin
-        },
-        events: {
-          onReady: event => {
-            youtubeReady = true;
-            event.target.setVolume(musicVolume);
-            $("music-status").textContent = "Listo. Podés escuchar el fragmento o continuar.";
-            resolvePlayerReady(event.target);
-            updateMusicUI();
-          },
-          onStateChange: event => {
-            if (!window.YT) return;
-            if (event.data === window.YT.PlayerState.PLAYING) {
-              $("music-status").textContent = "Reproduciendo desde el fragmento romántico.";
-            } else if (event.data === window.YT.PlayerState.PAUSED) {
-              $("music-status").textContent = "Canción en pausa.";
-            } else if (event.data === window.YT.PlayerState.ENDED) {
-              $("music-status").textContent = "La canción terminó.";
-            }
-            updateMusicUI();
-          },
-          onError: () => {
-            $("music-status").textContent = "YouTube no permitió reproducir este video aquí. Podés abrirlo directamente en YouTube.";
-            $("music-status").insertAdjacentHTML("beforeend", ' <a href="https://youtu.be/Ce4oeTiv3Xs" target="_blank" rel="noopener noreferrer">Abrir canción</a>');
-            $("preview-song").disabled = true;
-            $("music-yes").disabled = true;
-          }
-        }
+  function initializeSpotifyPlayer() {
+    if (spotifyApiRequested || spotifyController) return;
+    spotifyApiRequested = true;
+    window.onSpotifyIframeApiReady = IFrameAPI => {
+      const mount = $("spotify-embed");
+      if (!mount) return;
+      IFrameAPI.createController(mount, {
+        uri: SPOTIFY_TRACK_URI,
+        width: "100%",
+        height: "80"
+      }, controller => {
+        spotifyController = controller;
+        controller.addListener("ready", () => {
+          spotifyReady = true;
+          $("music-status").textContent = "Spotify está listo. Reproducí la canción desde su control y después continuá.";
+        });
+        controller.addListener("playback_started", () => {
+          spotifyPlaying = true;
+          $("music-status").textContent = "Reproduciendo Por amarte así.";
+          updateMusicUI();
+        });
+        controller.addListener("playback_update", event => {
+          spotifyPlaying = Boolean(event && event.data && !event.data.isPaused && !event.data.isBuffering);
+          if (spotifyPlaying) $("music-status").textContent = "Reproduciendo Por amarte así.";
+          updateMusicUI();
+        });
       });
     };
     const apiScript = document.createElement("script");
-    apiScript.src = "https://www.youtube.com/iframe_api";
+    apiScript.src = "https://open.spotify.com/embed/iframe-api/v1";
     apiScript.async = true;
+    apiScript.onerror = () => {
+      $("music-status").textContent = "No se pudo cargar el reproductor. Podés abrir la canción directamente en Spotify.";
+      const link = document.createElement("a");
+      link.href = "https://open.spotify.com/track/3sk1Pl8mAIv1GtIpea2Jwn";
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Abrir Por amarte así en Spotify";
+      $("music-status").append(" ", link);
+    };
     document.head.appendChild(apiScript);
   }
 
-  function playRomanticFragment() {
-    if (!youtubePlayer || !youtubeReady) {
-      $("music-status").textContent = "El reproductor todavía está cargando. Esperá un momento.";
-      return false;
-    }
-    const state = youtubePlayer.getPlayerState();
-    if (state === window.YT.PlayerState.PLAYING) {
-      youtubePlayer.pauseVideo();
-      return true;
-    }
-    if (state === window.YT.PlayerState.PAUSED) {
-      youtubePlayer.playVideo();
-      return true;
-    }
-    youtubePlayer.loadVideoById({
-      videoId: SONG_ID,
-      startSeconds: ROMANTIC_START_SECONDS
-    });
-    return true;
-  }
-
-  function stopMusic() {
-    if (youtubePlayer && youtubeReady) youtubePlayer.stopVideo();
-    musicOn = false;
-    if (youtubeReady) updateMusicUI();
-    else {
-      $("music-toggle").setAttribute("aria-pressed", "false");
-      $("music-label").textContent = "Música apagada";
-    }
-    $("music-status").textContent = "Música apagada.";
-  }
-
-  $("preview-song").addEventListener("click", playRomanticFragment);
-
-  const volumeSlider = $("music-volume");
-  const volumeValue = $("volume-value");
-  if (volumeSlider && volumeValue) {
-    musicVolume = Number(volumeSlider.value);
-    volumeValue.value = musicVolume + "%";
-    volumeSlider.addEventListener("input", () => {
-      musicVolume = Number(volumeSlider.value);
-      volumeValue.value = musicVolume + "%";
-      if (youtubePlayer && youtubeReady) youtubePlayer.setVolume(musicVolume);
-    });
+  function pauseMusic() {
+    try { if (spotifyController) spotifyController.pause(); } catch (_) {}
+    spotifyPlaying = false;
+    updateMusicUI();
   }
 
   $("music-yes").addEventListener("click", () => {
-    if (!youtubePlayer || !youtubeReady) return;
-    if (youtubePlayer.getPlayerState() !== window.YT.PlayerState.PLAYING) {
-      const state = youtubePlayer.getPlayerState();
-      if (state === window.YT.PlayerState.PAUSED) youtubePlayer.playVideo();
-      else youtubePlayer.loadVideoById({ videoId: SONG_ID, startSeconds: ROMANTIC_START_SECONDS });
+    if (spotifyController) {
+      try { spotifyController.play(); } catch (_) {}
     }
     movePlayerToFloating();
     showScreen("question-screen");
@@ -361,7 +295,7 @@
   });
 
   $("music-no").addEventListener("click", () => {
-    stopMusic();
+    pauseMusic();
     movePlayerToMusicScreen();
     showScreen("question-screen");
     questionIndex = 0;
@@ -369,39 +303,29 @@
   });
 
   $("music-toggle").addEventListener("click", () => {
-    if (!youtubePlayer || !youtubeReady) {
-      $("music-label").textContent = "Preparando reproductor…";
+    if (!spotifyController) {
+      $("music-label").textContent = "Preparando Spotify…";
+      initializeSpotifyPlayer();
       return;
     }
-    const state = youtubePlayer.getPlayerState();
-    if (state === window.YT.PlayerState.PLAYING) youtubePlayer.pauseVideo();
-    else if (state === window.YT.PlayerState.PAUSED) youtubePlayer.playVideo();
-    else youtubePlayer.loadVideoById({ videoId: SONG_ID, startSeconds: ROMANTIC_START_SECONDS });
+    try { spotifyController.togglePlay(); } catch (_) {}
   });
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) stopMusic();
-  });
-  window.addEventListener("pagehide", stopMusic);
 
   $("begin-button").addEventListener("click", () => showScreen("music-screen"));
-  $("music-yes").addEventListener("click", async () => {
-    if (!musicOn || activeStyle !== selectedStyle) await startMusic(selectedStyle);
-    showScreen("question-screen");
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) pauseMusic();
+  });
+  window.addEventListener("pagehide", pauseMusic);
+
+  $("brand-home").addEventListener("click", (event) => {
+    event.preventDefault();
+    pauseMusic();
+    movePlayerToMusicScreen();
+    heartMode = false;
     questionIndex = 0;
-    renderQuestion();
+    showScreen("welcome");
   });
-  $("music-no").addEventListener("click", async () => {
-    if (musicOn) await stopMusic();
-    showScreen("question-screen");
-    questionIndex = 0;
-    renderQuestion();
-  });
-  $("music-toggle").addEventListener("click", () => {
-    if (musicOn) stopMusic();
-    else startMusic(selectedStyle);
-  });
-  $("brand-home").addEventListener("click", (event) => { event.preventDefault(); heartMode = false; questionIndex = 0; showScreen("welcome"); });
   $("clue-continue").addEventListener("click", () => showScreen("reveal-screen"));
   $("letter-button").addEventListener("click", () => showScreen("letter-screen"));
   $("response-yes").addEventListener("click", (event) => {
