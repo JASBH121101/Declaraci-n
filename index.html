@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <script src="script.js?v=11" defer></script>
+  <script src="script.js?v=12" defer></script>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -46,12 +46,20 @@
           <small>Cristian Castro · canción romántica</small>
         </div>
       </div>
+      <div id="local-audio-controls" class="local-audio-controls" hidden>
+        <button class="preview-button local-audio-toggle" id="local-audio-play" type="button">▶ Escuchar fragmento romántico</button>
+        <div class="volume-control">
+          <div class="volume-label-row"><label for="local-audio-volume">Volumen</label><output id="local-audio-volume-value" for="local-audio-volume">65%</output></div>
+          <input id="local-audio-volume" type="range" min="0" max="100" value="65" step="1" aria-label="Volumen de la música">
+        </div>
+        <p class="song-fragment-note">La canción entra suavemente dos segundos antes del coro y se desvanece al llegar a la carta.</p>
+      </div>
       <div id="spotify-player-slot" class="spotify-player-slot">
         <div id="spotify-player-shell" class="spotify-player-shell">
           <div id="spotify-embed" aria-label="Reproductor de Spotify para Por amarte así"></div>
         </div>
       </div>
-      <p class="song-fragment-note">Reproducción de audio, sin video. Tocá el botón de reproducir en el reproductor de Spotify; podés pausarla cuando querás.</p>
+      <p class="song-fragment-note">Audio sin video. Si hay un archivo autorizado, se reproducirá con fundidos suaves; si no, queda disponible el reproductor oficial de Spotify.</p>
       <p class="music-status" id="music-status" aria-live="polite">Preparando el reproductor de Spotify…</p>
       <p class="audio-credit">La canción se carga desde Spotify; no se descarga ni se copia al sitio.</p>
       <div class="button-stack">
