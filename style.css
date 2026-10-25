@@ -27,3 +27,23 @@
 @media(min-width:560px){.music-options{grid-template-columns:1fr 1fr;align-items:stretch}.music-option{display:flex;flex-direction:column;justify-content:space-between}}
 
 .audio-credit{max-width:410px;text-align:center;font-size:.58rem;line-height:1.5;color:#8d6c76;margin:16px auto 0}
+
+
+/* Reproductor oficial de YouTube para la canción elegida */
+.song-title-card{display:flex;align-items:center;gap:14px;width:min(100%,410px);padding:14px 16px;margin:2px 0 14px;text-align:left;border:1px solid rgba(255,125,146,.24);border-radius:16px;background:linear-gradient(135deg,rgba(200,37,70,.14),rgba(255,255,255,.025))}
+.song-title-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border:1px solid rgba(255,126,149,.42);border-radius:50%;color:#ff9aaa;font-size:1.35rem}
+.song-title-copy{display:flex;flex-direction:column;gap:4px}
+.song-title-copy strong{font-size:.86rem;font-weight:600;color:#fff5f5}
+.song-title-copy small{font-size:.7rem;color:#bda0a8}
+.song-player-slot{width:min(100%,410px)}
+.song-player-shell{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border:1px solid rgba(255,125,146,.32);border-radius:14px;background:#070407;box-shadow:0 14px 40px rgba(0,0,0,.28);margin:0 auto 12px}
+#youtube-player,#youtube-player iframe{display:block;width:100%!important;height:100%!important;border:0}
+.song-preview{width:min(100%,410px);min-height:42px;margin:0 auto 10px}
+.song-preview:disabled{opacity:.65;cursor:wait}
+.song-fragment-note{width:min(100%,410px);margin:0 auto 16px;color:#b99aa2;font-size:.72rem;line-height:1.55;text-align:center}
+.song-fragment-note strong{color:#f5a0af;font-weight:600}
+.music-status{min-height:20px;margin:2px auto 8px;color:#e7b6c0;font-size:.72rem;line-height:1.5;text-align:center}
+.music-status a{color:#ff9aaa;text-underline-offset:3px}
+.song-player-shell.is-floating{position:fixed;z-index:20;right:16px;bottom:16px;width:min(250px,calc(100vw - 32px));margin:0;border-color:rgba(255,125,146,.48);box-shadow:0 12px 45px rgba(0,0,0,.62),0 0 22px rgba(221,47,79,.16)}
+body.music-floating .screen{padding-bottom:170px}
+@media(max-width:480px){.song-player-shell.is-floating{right:10px;bottom:10px;width:min(196px,calc(100vw - 20px));border-radius:10px}body.music-floating .screen{padding-bottom:145px}.song-fragment-note{font-size:.68rem}}
