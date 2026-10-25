@@ -57,3 +57,10 @@ body.music-floating .screen{padding-bottom:170px}
 .spotify-player-shell.is-floating{position:fixed;z-index:20;right:12px;bottom:12px;width:min(340px,calc(100vw - 24px));height:80px;margin:0;border-color:rgba(255,125,146,.45);box-shadow:0 12px 40px rgba(0,0,0,.55),0 0 22px rgba(221,47,79,.13)}
 body.music-floating .screen{padding-bottom:125px}
 @media(max-width:480px){.spotify-player-shell.is-floating{right:8px;bottom:8px;width:calc(100vw - 16px);height:80px}body.music-floating .screen{padding-bottom:124px}}
+
+
+/* Controles discretos para audio local autorizado */
+.local-audio-controls{width:min(100%,410px);margin:2px auto 14px}
+.local-audio-controls[hidden],.spotify-player-slot[hidden]{display:none!important}
+.local-audio-toggle{width:100%;min-height:44px;margin:0 auto 10px}
+.local-audio-controls .volume-control{width:100%;margin:0 auto 10px}
