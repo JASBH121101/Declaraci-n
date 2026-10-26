@@ -222,6 +222,7 @@
 
   let spotifyApiRequested = false;
   let spotifyController = null;
+  let spotifyReady = false;
   let spotifyPlaying = false;
   let nativeAudio = null;
   let nativeAudioAvailable = false;
@@ -371,7 +372,9 @@
       }, controller => {
         spotifyController = controller;
         controller.addListener("ready", () => {
-          $("music-status").textContent = "Spotify está listo. La reproducción completa puede depender de tu cuenta y dispositivo.";
+          spotifyReady = true;
+          $("music-yes").disabled = false;
+          $("music-status").textContent = "Spotify está listo. Al continuar, la canción se solicitará desde 0:27; la reproducción completa puede depender de tu cuenta y dispositivo.";
         });
         controller.addListener("playback_started", () => {
           spotifyPlaying = true;
@@ -401,6 +404,7 @@
 
   async function initializeAudioSystem() {
     if (nativeAudioAvailable || spotifyController || spotifyApiRequested) return;
+    $("music-yes").disabled = true;
     $("music-status").textContent = "Preparando la música…";
     try {
       const response = await fetch(LOCAL_AUDIO_URL, { method: "HEAD", cache: "no-store" });
@@ -409,6 +413,10 @@
         nativeAudio = new Audio(LOCAL_AUDIO_URL);
         nativeAudio.preload = "auto";
         nativeAudio.volume = 0;
+        nativeAudio.addEventListener("loadedmetadata", () => {
+          $("music-yes").disabled = false;
+          $("music-status").textContent = "Audio listo. Al continuar, comenzará desde 0:27 con entrada gradual.";
+        }, { once: true });
         nativeAudio.addEventListener("timeupdate", () => {
           if (!endFadeStarted && Number.isFinite(nativeAudio.duration) &&
               nativeAudio.duration - nativeAudio.currentTime <= FADE_OUT_MS / 1000 &&
@@ -427,9 +435,13 @@
         });
         nativeAudioAvailable = true;
         nativeAudioMode = true;
+        nativeAudio.load();
+        $("music-yes").disabled = nativeAudio.readyState < 1;
         nativeAudioPanel.hidden = false;
         playerSlot.hidden = true;
-        $("music-status").textContent = "Audio preparado. Tocá «Escuchar fragmento romántico» para probar el fundido.";
+        $("music-status").textContent = nativeAudio.readyState >= 1
+          ? "Audio listo para iniciar desde 0:27."
+          : "Preparando el archivo de audio…";
         return;
       }
     } catch (_) {
@@ -463,12 +475,24 @@
 
   $("music-yes").addEventListener("click", async () => {
     if (nativeAudioAvailable) {
-      if (!nativeAudioStarted || nativeAudio.paused) await startNativeAudio();
-    } else if (spotifyController) {
+      const started = await startNativeAudio();
+      if (!started) return;
+    } else {
+      // Keep this action inside the user's click: Spotify may block programmatic autoplay otherwise.
+      if (!spotifyController || !spotifyReady) {
+        $("music-status").textContent = "El reproductor todavía se está preparando. Esperá a que esté listo para continuar con música.";
+        $("music-yes").disabled = true;
+        return;
+      }
       try {
         spotifyController.loadEntity(SPOTIFY_TRACK_URI, false, ROMANTIC_START_SECONDS);
         spotifyController.play();
-      } catch (_) {}
+        $("music-status").textContent = "Solicitando reproducción desde 0:27…";
+      } catch (error) {
+        $("music-status").textContent = "Spotify no pudo iniciar la canción. Podés volver a intentarlo o continuar sin música.";
+        console.warn("Could not start Spotify playback:", error);
+        return;
+      }
     }
     movePlayerToFloating();
     showScreen("question-screen");
@@ -489,9 +513,10 @@
       startNativeAudio();
       return;
     }
-    if (!spotifyController) {
+    if (!spotifyController || !spotifyReady) {
       $("music-label").textContent = "Preparando Spotify…";
       initializeAudioSystem();
+      $("music-status").textContent = "Spotify todavía se está preparando; cuando esté listo, tocá el botón de música de nuevo.";
       return;
     }
     try { spotifyController.togglePlay(); } catch (_) {}
