@@ -215,7 +215,7 @@
   // Path for an authorized full-track file, if one may be published in this public site.
   // The commercial recording is intentionally not included in this repository.
   const LOCAL_AUDIO_URL = "./assets/audio/por-amarte-asi.mp3";
-  const ROMANTIC_START_SECONDS = 71; // chorus starts around 1:13 in the matching recording
+  const ROMANTIC_START_SECONDS = 27; // begin at 0:27 of the supplied audio file
   const FADE_IN_MS = 3500;
   const FADE_OUT_MS = 5000;
   const TARGET_VOLUME = 0.65;
