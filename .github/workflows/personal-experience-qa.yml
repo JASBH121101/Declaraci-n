@@ -1,0 +1,76 @@
+name: Personal Experience QA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_personal_experience_qa:
+        description: "Run the read-only browser audit against the published Declaraci-n experience"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  qa-tool-tests:
+    name: Validate Personal Experience QA tools
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check QA module syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in qa/*.mjs; do
+            node --check "$file"
+          done
+      - name: Test scoring and evidence safeguards
+        run: node --test qa/personal-experience-qa-profile.test.mjs qa/ai-visual-review-utils.test.mjs qa/personal-experience-qa-workflow.test.mjs
+
+  personal-experience-audit:
+    name: Read-only Declaraci-n browser audit
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_personal_experience_qa }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      EXPERIENCE_AUDIT_URL: https://jasbh121101.github.io/Declaraci-n/
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright and accessibility tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright@1.64.1 @axe-core/playwright@4.14.0
+          npx playwright install --with-deps chromium
+      - name: Execute the narrative and interaction journeys
+        run: node qa/personal-experience-qa.mjs
+      - name: Review screenshots with Cloudflare Workers AI
+        env:
+          QA_PROFILE: personal-experience
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node qa/ai-visual-review.mjs
+      - name: Upload screenshots and evaluation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: personal-experience-qa-evidence
+          path: artifacts/personal-experience-qa/
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 6
