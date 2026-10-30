@@ -8,22 +8,8 @@ const API_TOKEN = String(process.env.CLOUDFLARE_API_TOKEN || "").trim();
 const MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
 const ROOT = resolve("artifacts/personal-experience-qa");
 const MAX_IMAGE_BYTES = 5_200_000;
-const QA_PROFILE = String(process.env.QA_PROFILE || "ecommerce").trim();
-if (!["ecommerce", "personal-experience"].includes(QA_PROFILE)) throw new Error(`Unknown QA_PROFILE: ${QA_PROFILE}`);
-const EXPERIENCE_PROFILE = QA_PROFILE === "personal-experience";
-const CATALOG_CASES = [
-  { page: "JB Collections — portada", viewport: "mobile-390", theme: "light", file: "home--mobile-390--light.png", focus: "header, navegación, hero, espacios vacíos, CTA y legibilidad en el primer viewport" },
-  { page: "JB Collections — portada", viewport: "desktop-1365", theme: "dark", file: "home--desktop-1365--dark.png", focus: "uso del ancho, hero, jerarquía, navegación y llamadas a la acción" },
-  { page: "JB TECH — catálogo", viewport: "mobile-390", theme: "dark", file: "technology--mobile-390--dark.png", focus: "densidad y alineación de tarjetas, fotografías, precios, filtros y botones" },
-  { page: "JB TECH — catálogo", viewport: "desktop-1365", theme: "light", file: "technology--desktop-1365--light.png", focus: "consistencia de cuadrícula, espacios, filtros, escala de imágenes y jerarquía de tarjetas" },
-  { page: "JB TECH — detalle de producto", viewport: "desktop-1365", theme: "light", file: "technology-detail--desktop-1365--light--viewport.png", focus: "protagonismo del producto, galería, espacio entre imagen e información, precio y contacto" },
-  { page: "JB TECH — detalle de producto", viewport: "mobile-390", theme: "dark", file: "technology-detail--mobile-390--dark--viewport.png", focus: "galería móvil, legibilidad, orden vertical, controles y contenido que quede fuera de pantalla" },
-  { page: "JB Parfums — catálogo", viewport: "mobile-390", theme: "light", file: "perfumery--mobile-390--light.png", focus: "legibilidad del banner, tarjetas, fotos de perfumes, categorías, precios y espaciado" },
-  { page: "JB Parfums — catálogo", viewport: "desktop-1365", theme: "dark", file: "perfumery--desktop-1365--dark.png", focus: "consistencia de cuadrícula, protagonismo fotográfico, jerarquía del banner y uso del espacio" },
-  { page: "JB Parfums — detalle de producto", viewport: "desktop-1365", theme: "dark", file: "perfumery-detail--desktop-1365--dark--viewport.png", focus: "protagonismo del frasco, galería, espacio entre imagen e información, precio y contacto" },
-  { page: "JB Parfums — detalle de producto", viewport: "mobile-390", theme: "light", file: "perfumery-detail--mobile-390--light--viewport.png", focus: "tamaño del frasco, galería móvil, texto, precio, contacto y orden vertical" },
-];
-const CASES = EXPERIENCE_PROFILE ? buildExperienceAiCases() : CATALOG_CASES;
+const EXPERIENCE_PROFILE = true;
+const CASES = buildExperienceAiCases();
 const analyses = [];
 const errors = [];
 const schemaExample = {
