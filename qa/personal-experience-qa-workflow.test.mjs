@@ -22,11 +22,13 @@ test("browser audit is bound to the published Declaraci-n URL and read-only requ
   assert.ok(browserAudit.includes('request.method().toUpperCase()'));
   assert.ok(browserAudit.includes('blockedWrites'));
   assert.ok(browserAudit.includes('fullPage: true'));
+  assert.ok(browserAudit.includes('portrait-placeholder-pending'));
+  assert.ok(browserAudit.includes('Tu retrato aparecerá aquí'));
 });
 
 test("AI review uses only the dedicated experience profile and produces the scorecard", () => {
-  assert.ok(aiReview.includes('QA_PROFILE'));
-  assert.ok(aiReview.includes('personal-experience'));
+  assert.ok(aiReview.includes('const EXPERIENCE_PROFILE = true'));
+  assert.ok(aiReview.includes('buildExperienceAiCases'));
   assert.ok(aiReview.includes('calculateExperienceScores'));
   assert.ok(aiReview.includes('experience-qa-evaluation.md'));
   assert.ok(profile.includes('expectedAiReviews'));
