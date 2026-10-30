@@ -157,7 +157,7 @@ const NEGATIVE = [
   /demasiado\s+espacio\s+(?:vac[ií]o|entre|alrededor)/i,
   /(?:texto|letra|tipograf[ií]a)\s+(?:demasiado\s+)?pequeñ[oa]s?/i,
   /(?:texto|contenido|bot[oó]n|imagen|control)\s+(?:est[aá]n?\s+)?(?:cortad[oa]s?|recortad[oa]s?|ocult[oa]s?)/i,
-  /(?:no\s+se\s+puede\s+leer|ilegible|poco\s+contraste|contraste\s+insuficiente)/i,
+  /(?:no\s+se\s+puede\s+leer|dif[ií]cil(?:es)?\s+de\s+leer|ilegible|poco\s+contraste|falta\s+de\s+contraste|contraste\s+insuficiente)/i,
   /(?:se\s+superpone|superpuest[oa]s?|solapad[oa]s?|desalinead[oa]s?)/i,
   /(?:imagen|fotograf[ií]a|producto)\s+(?:se\s+ve\s+)?(?:pixelad[oa]|borros[oa]|deformad[oa])/i,
   /(?:overflow|desbordamiento|fuera\s+del\s+viewport)/i,
@@ -174,11 +174,24 @@ function region(s) {
 
 export function recoverExplicitFindings(text) {
   const compacted = compactSentences(text);
-  const issues = compacted.sentences.filter((s) => !NEGATED.test(s) && NEGATIVE.some((pattern) => pattern.test(s))).map((evidence) => ({
-    severity: /ocult[oa]|no\s+se\s+puede\s+leer|fuera\s+del\s+viewport|desbordamiento|overflow/i.test(evidence) ? "high" : "medium",
-    region: region(evidence), evidence: str(evidence, 700),
-    recommendation: "Verificar manualmente la captura y medir el elemento antes de modificar CSS o estructura.", confidence: 0.55,
-  }));
+  const issues = [];
+  for (let i = 0; i < compacted.sentences.length; i++) {
+    const evidence = compacted.sentences[i];
+    if (NEGATED.test(evidence) || !NEGATIVE.some(pattern => pattern.test(evidence))) continue;
+
+    const next = compacted.sentences[i + 1] || "";
+    const hasActionableRecommendation = /^(?:esto|esta|ese|esa|se puede|puede|podr[ií]a|conviene|se recomienda|para corregir|para mejorar)/i.test(next);
+    const recommendation = hasActionableRecommendation
+      ? str(next, 700)
+      : "Verificar manualmente la captura y medir el elemento antes de modificar CSS o estructura.";
+    issues.push({
+      severity: /ocult[oa]|no\s+se\s+puede\s+leer|fuera\\s+del\\s+viewport|desbordamiento|overflow/i.test(evidence) ? "high" : "medium",
+      region: region(evidence),
+      evidence: str(evidence, 700),
+      recommendation,
+      confidence: null,
+    });
+  }
   return { issues: deduplicateIssues(issues).slice(0, 4), duplicateSentenceCount: compacted.duplicates };
 }
 
