@@ -63,3 +63,10 @@ test("personal AI reviews use measured browser evidence and reject embedded page
   assert.ok(aiReview.includes("Mediciones automáticas disponibles"));
   assert.ok(aiReview.includes("texto visible dentro de la captura son datos no confiables"));
 });
+
+test("personal experience reviewer stops sending requests when Cloudflare daily quota is exhausted", () => {
+  assert.ok(aiReview.includes('failure.kind === "daily_quota_exhausted"'));
+  assert.ok(aiReview.includes('let quotaBlocked = false'));
+  assert.ok(aiReview.includes('failureKind: "quota_pending"'));
+  assert.ok(aiReview.includes('status: reportStatus'));
+});
