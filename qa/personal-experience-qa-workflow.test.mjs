@@ -45,7 +45,8 @@ test("AI reviewer prepares oversized screenshots and preserves the original evid
 
 test("AI reviewer uses targeted correction and bounded retry policies", () => {
   assert.ok(aiReview.includes("requestAttempt <= 3"));
-  assert.ok(aiReview.includes("response.status === 429"));
+  assert.ok(aiReview.includes("classifyCloudflareFailure"));
+  assert.ok(aiReview.includes("daily_quota_exhausted"));
   assert.ok(aiReview.includes("correctionReason"));
   assert.ok(aiReview.includes("Corrige específicamente este problema"));
   assert.ok(aiReview.includes("httpRetryAttempts"));
