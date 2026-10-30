@@ -1,7 +1,7 @@
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import sharp from "sharp";
-import { getModelText, interpretModelResponse, recoverExplicitFindings, safeText } from "./ai-visual-review-utils.mjs";
+import { classifyCloudflareFailure, getModelText, interpretModelResponse, recoverExplicitFindings, safeText } from "./ai-visual-review-utils.mjs";
 import { buildExperienceAiCases, calculateExperienceScores } from "./personal-experience-qa-profile.mjs";
 
 const ACCOUNT_ID = String(process.env.CLOUDFLARE_ACCOUNT_ID || "").trim();
@@ -14,11 +14,11 @@ const CATALOG_CASES = [
   { page: "JB Collections — portada", viewport: "mobile-390", theme: "light", file: "home--mobile-390--light.png", focus: "header, navegación, hero, espacios vacíos, CTA y legibilidad en el primer viewport" },
   { page: "JB Collections — portada", viewport: "desktop-1365", theme: "dark", file: "home--desktop-1365--dark.png", focus: "uso del ancho, hero, jerarquía, navegación y llamadas a la acción" },
   { page: "JB TECH — catálogo", viewport: "mobile-390", theme: "dark", file: "technology--mobile-390--dark.png", focus: "densidad y alineación de tarjetas, fotografías, precios, filtros y botones" },
-  { page: "JB TECH — catálogo", viewport: "desktop-1365", theme: "light", file: "technology--desktop-1365--light.png", focus: "consistencia de cuadrícula, espacios, filtros, escala de imágenes y jerarquía de tarjetas" },
+  { page: "JB TECH — catálogo", viewport: "desktop-2560", theme: "light", file: "technology--desktop-2560--light.png", focus: "uso del ancho en monitor 2K, número de columnas, escala de tarjetas, filtros y equilibrio de espacios en escritorio grande" },
   { page: "JB TECH — detalle de producto", viewport: "desktop-1365", theme: "light", file: "technology-detail--desktop-1365--light--viewport.png", focus: "protagonismo del producto, galería, espacio entre imagen e información, precio y contacto" },
   { page: "JB TECH — detalle de producto", viewport: "mobile-390", theme: "dark", file: "technology-detail--mobile-390--dark--viewport.png", focus: "galería móvil, legibilidad, orden vertical, controles y contenido que quede fuera de pantalla" },
   { page: "JB Parfums — catálogo", viewport: "mobile-390", theme: "light", file: "perfumery--mobile-390--light.png", focus: "legibilidad del banner, tarjetas, fotos de perfumes, categorías, precios y espaciado" },
-  { page: "JB Parfums — catálogo", viewport: "desktop-1365", theme: "dark", file: "perfumery--desktop-1365--dark.png", focus: "consistencia de cuadrícula, protagonismo fotográfico, jerarquía del banner y uso del espacio" },
+  { page: "JB Parfums — catálogo", viewport: "ultrawide-3440", theme: "dark", file: "perfumery--ultrawide-3440--dark.png", focus: "uso del ancho ultrawide, distribución de productos, proporciones de tarjetas, banner y espacios laterales" },
   { page: "JB Parfums — detalle de producto", viewport: "desktop-1365", theme: "dark", file: "perfumery-detail--desktop-1365--dark--viewport.png", focus: "protagonismo del frasco, galería, espacio entre imagen e información, precio y contacto" },
   { page: "JB Parfums — detalle de producto", viewport: "mobile-390", theme: "light", file: "perfumery-detail--mobile-390--light--viewport.png", focus: "tamaño del frasco, galería móvil, texto, precio, contacto y orden vertical" },
 ];
@@ -217,18 +217,23 @@ async function callModel(item, image, attempt, correctionReason = "", evidence =
       let payload;
       try { payload = JSON.parse(bodyText); } catch { payload = { raw_response: bodyText.slice(0, 2500) }; }
 
-      const retryableStatus = response.status === 408 || response.status === 429 || response.status >= 500;
+      const failure = classifyCloudflareFailure({ status: response.status, payload, bodyText });
       if (!response.ok || payload.success === false) {
         const reason = Array.isArray(payload.errors)
-          ? payload.errors.map(error => safeText(error.message || error.code || "unknown", 300)).join("; ")
-          : `HTTP ${response.status}`;
-        if (retryableStatus && requestAttempt < 3) {
+          ? payload.errors.map(item => safeText(item.message || item.code || "unknown", 300)).join("; ")
+          : safeText(payload.message || bodyText || `HTTP ${response.status}`, 600);
+        if (failure.kind === "daily_quota_exhausted") {
+          const error = new Error(`Cloudflare daily neuron allocation exhausted: ${reason}`);
+          error.failureKind = "daily_quota_exhausted";
+          throw error;
+        }
+        if (failure.retryable && requestAttempt < 3) {
           const retryAfter = Number(response.headers.get("retry-after"));
           await delay(Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(5000, retryAfter * 1000) : requestAttempt * 1200);
           continue;
         }
         const error = new Error(`Cloudflare Workers AI request failed: ${reason}`);
-        error.failureKind = response.status === 429 ? "rate_limited" : retryableStatus ? "server_error" : "api_rejected";
+        error.failureKind = failure.kind;
         throw error;
       }
 
@@ -364,6 +369,8 @@ function makeSummary() {
     repeatedSentencesRemoved: analyses.reduce((sum, item) => sum + (item.duplicateSentenceCount || 0), 0),
     imageOptimizations: optimized.length,
     evidenceBackedReviews: analyses.filter(item => item.measuredEvidenceAvailable).length,
+    quotaExhausted: errors.some(item => item.failureKind === "daily_quota_exhausted"),
+    quotaPendingScreenshots: errors.filter(item => item.failureKind === "quota_pending").length,
     imageBytesSaved: optimized.reduce((sum, item) => sum + (item.bytesSaved || 0), 0),
     httpRetryAttempts: analyses.reduce((sum, item) => sum + Math.max(0, (item.requestAttempts || 0) - (item.attempts || 0)), 0),
     averageReviewMs: successful.length ? Math.round(successful.reduce((sum, item) => sum + (item.durationMs || 0), 0) / successful.length) : null,
@@ -376,7 +383,7 @@ function markdown(report) {
   const lines = [EXPERIENCE_PROFILE ? "# Declaraci-n — revisión de experiencia personal con IA" : "# JB Collections — revisión visual con IA", "", `- Estado: **${report.status}**`, `- Modelo: \`${MODEL}\``,
     `- Capturas solicitadas: ${s.requestedScreenshots}`, `- Respuestas API: ${s.apiResponses}`, `- JSON validados: ${s.structuredReviews}`,
     `- Recuperadas de prosa (requieren revisión): ${s.recoveredReviews}`, `- Respuestas inválidas: ${s.invalidResponses}`,
-    `- Errores de solicitud: ${s.failedReviews}`, `- Capturas optimizadas: ${s.imageOptimizations}`, `- Capturas con mediciones del navegador: ${s.evidenceBackedReviews}`, `- Bytes reducidos: ${s.imageBytesSaved}`, `- Reintentos de transporte: ${s.httpRetryAttempts}`, `- Duración media por captura: ${s.averageReviewMs ?? "—"} ms`, `- Incidencias concretas: ${s.reportedIssues}`, `- Frases repetidas eliminadas: ${s.repeatedSentencesRemoved}`,
+    `- Errores de solicitud: ${s.failedReviews}`, `- Cuota diaria agotada: ${s.quotaExhausted ? "sí" : "no"}`, `- Capturas omitidas por cuota: ${s.quotaPendingScreenshots}`, `- Capturas optimizadas: ${s.imageOptimizations}`, `- Capturas con mediciones del navegador: ${s.evidenceBackedReviews}`, `- Bytes reducidos: ${s.imageBytesSaved}`, `- Reintentos de transporte: ${s.httpRetryAttempts}`, `- Duración media por captura: ${s.averageReviewMs ?? "—"} ms`, `- Incidencias concretas: ${s.reportedIssues}`, `- Frases repetidas eliminadas: ${s.repeatedSentencesRemoved}`,
     `- Capturas que requieren revisión manual: ${s.manualReviewRequired}`, "",
     "> Cero incidencias no prueba que el diseño esté perfecto. Solo respuestas JSON válidas cuentan como revisión estructurada; toda recuperación de prosa necesita revisión humana.", "", "## Detalle por captura", ""];
   if (!report.analyses.length) lines.push("No se obtuvieron respuestas de la IA.", "");
@@ -478,7 +485,7 @@ async function appendStepSummary(report) {
   await appendFile(process.env.GITHUB_STEP_SUMMARY, ["## Revisión visual con IA", "", `**Estado: ${report.status}** — \`${MODEL}\``, "",
     "| Métrica | Resultado |", "|---|---:|", `| Capturas solicitadas | ${s.requestedScreenshots} |`, `| Respuestas API | ${s.apiResponses} |`,
     `| JSON validados | ${s.structuredReviews} |`, `| Recuperadas de prosa | ${s.recoveredReviews} |`, `| Respuestas inválidas | ${s.invalidResponses} |`,
-    `| Errores de solicitud | ${s.failedReviews} |`, `| Capturas optimizadas | ${s.imageOptimizations} |`, `| Revisiones con mediciones del navegador | ${s.evidenceBackedReviews} |`, `| Bytes reducidos | ${s.imageBytesSaved} |`, `| Reintentos HTTP | ${s.httpRetryAttempts} |`, `| Tasa JSON estructurado | ${s.structuredRatePct}% |`, `| Incidencias concretas | ${s.reportedIssues} |`, `| Frases duplicadas eliminadas | ${s.repeatedSentencesRemoved} |`, "",
+    `| Errores de solicitud | ${s.failedReviews} |`, `| Cuota diaria agotada | ${s.quotaExhausted ? "sí" : "no"} |`, `| Capturas omitidas por cuota | ${s.quotaPendingScreenshots} |`, `| Capturas optimizadas | ${s.imageOptimizations} |`, `| Revisiones con mediciones del navegador | ${s.evidenceBackedReviews} |`, `| Bytes reducidos | ${s.imageBytesSaved} |`, `| Reintentos HTTP | ${s.httpRetryAttempts} |`, `| Tasa JSON estructurado | ${s.structuredRatePct}% |`, `| Incidencias concretas | ${s.reportedIssues} |`, `| Frases duplicadas eliminadas | ${s.repeatedSentencesRemoved} |`, "",
     "> El estado del job no equivale a una aprobación visual. Consultá el artefacto para evidencia por captura.", ""].join("\n") + "\n", "utf8");
 }
 
@@ -491,14 +498,33 @@ if (!ACCOUNT_ID || !API_TOKEN) {
   if (EXPERIENCE_PROFILE) await writeExperienceEvaluation("not-run");
 } else {
   const evidenceIndex = await loadAuditEvidence();
+  let quotaBlocked = false;
+  let quotaMessage = "";
   for (const item of CASES) {
-    try { analyses.push(await review(item, evidenceIndex)); }
-    catch (error) { errors.push({ page: item.page, viewport: item.viewport, theme: item.theme, screenshot: item.file, failureKind: error.failureKind || "review_failed", message: safeText(error.message, 800) }); }
+    if (quotaBlocked) {
+      errors.push({
+        page: item.page, viewport: item.viewport, theme: item.theme, screenshot: item.file,
+        failureKind: "quota_pending",
+        message: "No se envió esta captura porque Cloudflare ya confirmó que la cuota diaria de neuronas está agotada.",
+      });
+      continue;
+    }
+    try {
+      analyses.push(await review(item, evidenceIndex));
+    } catch (error) {
+      const failureKind = error.failureKind || "review_failed";
+      errors.push({ page: item.page, viewport: item.viewport, theme: item.theme, screenshot: item.file, failureKind, message: safeText(error.message, 800) });
+      if (failureKind === "daily_quota_exhausted") {
+        quotaBlocked = true;
+        quotaMessage = safeText(error.message, 800);
+      }
+    }
   }
   const summary = makeSummary();
   const allStructured = summary.structuredReviews === CASES.length && errors.length === 0;
   const useful = summary.reviewedScreenshots > 0;
-  const report = { generatedAt: new Date().toISOString(), status: allStructured ? "completed" : useful ? "partial" : analyses.length ? "needs_manual_review" : "failed", model: MODEL,
+  const reportStatus = quotaBlocked ? "quota_exhausted" : allStructured ? "completed" : useful ? "partial" : analyses.length ? "needs_manual_review" : "failed";
+  const report = { generatedAt: new Date().toISOString(), status: reportStatus, quotaMessage: quotaMessage || null, model: MODEL,
     reviewType: "advisory multimodal visual critique; image optimization, schema validation, targeted correction retry, transient request retries, prose recovery",
     summary, analyses, errors,
     safety: "Read-only multimodal critique. Images over the payload limit are resized and encoded as JPEG for the model; original evidence screenshots remain unchanged. Invalid prose is retried and never silently counted as a clean pass. No code or production data is modified." };
