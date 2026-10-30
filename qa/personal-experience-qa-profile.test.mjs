@@ -37,6 +37,33 @@ test("unexecuted journey steps count against the functionality score", () => {
   assert.equal(scores.functionality, 50);
 });
 
+test("missing screenshots reduce adaptability and incomplete Axe scans stay pending", () => {
+  const scores = calculateEvidenceScores({
+    summary: {
+      scenarios: 8, expectedScenarios: 10, overflowScenarios: 1,
+      axeScans: 8, expectedAxeScans: 10, axeByImpact: {},
+    },
+  });
+  assert.equal(scores.adaptability, 70);
+  assert.equal(scores.accessibility, null);
+});
+
+test("partial AI screenshot reviews cannot produce visual or narrative averages", () => {
+  const result = calculateExperienceScores({
+    summary: {
+      journeyChecks: 18, journeyExpectedChecks: 18, journeyPassed: 18,
+      scenarios: 20, expectedScenarios: 20, overflowScenarios: 0,
+      axeScans: 20, expectedAxeScans: 20, expectedAiReviews: 20, axeByImpact: {},
+    },
+  }, [
+    { parseStatus: "structured", review: { visual_score: 90, narrative_score: 90 } },
+    { parseStatus: "structured", review: { visual_score: 90, narrative_score: 90 } },
+  ]);
+  assert.equal(result.dimensions.visual, null);
+  assert.equal(result.dimensions.narrative, null);
+  assert.equal(result.overall, null);
+});
+
 test("overall experience score remains unavailable until all five dimensions have evidence", () => {
   const partial = calculateExperienceScores({
     summary: { journeyChecks: 4, journeyExpectedChecks: 4, journeyPassed: 4, scenarios: 4, overflowScenarios: 0, axeScans: 4, axeByImpact: {} },
