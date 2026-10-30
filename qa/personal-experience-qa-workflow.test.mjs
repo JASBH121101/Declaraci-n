@@ -34,3 +34,25 @@ test("AI review uses only the dedicated experience profile and produces the scor
   assert.ok(profile.includes('expectedAiReviews'));
   assert.ok(profile.includes('expectedAxeScans'));
 });
+
+test("AI reviewer prepares oversized screenshots and preserves the original evidence", () => {
+  assert.ok(aiReview.includes('import sharp from "sharp"'));
+  assert.ok(aiReview.includes("async function prepareVisionImage"));
+  assert.ok(aiReview.includes(".jpeg({ quality: variant.quality"));
+  assert.ok(aiReview.includes("imageOptimized"));
+  assert.ok(workflow.includes("sharp@0.35.5"));
+});
+
+test("AI reviewer uses targeted correction and bounded retry policies", () => {
+  assert.ok(aiReview.includes("requestAttempt <= 3"));
+  assert.ok(aiReview.includes("response.status === 429"));
+  assert.ok(aiReview.includes("correctionReason"));
+  assert.ok(aiReview.includes("Corrige específicamente este problema"));
+  assert.ok(aiReview.includes("httpRetryAttempts"));
+});
+
+test("personal experience scoring rejects placeholder zeroes and does not invent confidence", () => {
+  assert.ok(aiReview.includes("No uses 0 como marcador de puntuación"));
+  assert.ok(aiReview.includes('confidence es opcional'));
+  assert.ok(aiReview.includes('no indicada'));
+});
