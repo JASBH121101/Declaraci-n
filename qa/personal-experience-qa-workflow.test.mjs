@@ -71,3 +71,9 @@ test("personal experience reviewer stops sending requests when Cloudflare daily 
   assert.ok(aiReview.includes('failureKind: "quota_pending"'));
   assert.ok(aiReview.includes('status: reportStatus'));
 });
+
+test("a quota error during JSON correction stops the personal review batch and retains image metrics", () => {
+  assert.ok(aiReview.includes('if (error.failureKind === "daily_quota_exhausted")'));
+  assert.ok(aiReview.includes("attachImagePreparation(error, sourceBytes, image)"));
+  assert.ok(aiReview.includes("imageRuns = [...analyses, ...errors]"));
+});
