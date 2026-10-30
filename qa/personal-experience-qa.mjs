@@ -252,6 +252,7 @@ const report = {
   mode: "read-only browser audit",
   summary: {
     scenarios: results.length,
+    expectedScenarios: PERSONAL_EXPERIENCE_PROFILE.states.length * PERSONAL_EXPERIENCE_PROFILE.viewports.length,
     screenshots: results.length,
     journeyChecks: journeys.length,
     journeyExpectedChecks: PERSONAL_EXPERIENCE_PROFILE.viewports.length * 9,
@@ -261,6 +262,8 @@ const report = {
     overflowScenarios: results.filter(item => item.metrics.horizontalOverflow >= 8).length,
     runtimeErrors: runtimeErrors.length,
     axeScans: axeScanCount,
+    expectedAxeScans: PERSONAL_EXPERIENCE_PROFILE.states.length * PERSONAL_EXPERIENCE_PROFILE.viewports.length,
+    expectedAiReviews: PERSONAL_EXPERIENCE_PROFILE.states.length * PERSONAL_EXPERIENCE_PROFILE.viewports.length,
     axeUniqueViolations: axeFindings.length,
     axeViolationOccurrences: axeFindings.reduce((sum, item) => sum + item.occurrences, 0),
     axeByImpact,
