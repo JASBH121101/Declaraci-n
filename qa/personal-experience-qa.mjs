@@ -117,6 +117,16 @@ async function capture(page, viewport, state, screenId) {
     findings.push({ severity: "medium", page: state, viewport: viewport.name, type: "image-load",
       evidence: "Una o más imágenes visibles no terminaron de cargar.", recommendation: "Verificar ruta, formato, respuesta HTTP y fallback de la imagen." });
   }
+  if (state === "reveal" && /Tu retrato aparecerá aquí/i.test(metrics.activeText)) {
+    findings.push({
+      severity: "medium",
+      page: state,
+      viewport: viewport.name,
+      type: "portrait-placeholder-pending",
+      evidence: "La pantalla de revelación todavía muestra el marcador de posición del retrato.",
+      recommendation: "Integrar el retrato final aprobado antes de publicar la experiencia como terminada; revisar encuadre, nitidez, contraste y presentación móvil.",
+    });
+  }
   return metrics;
 }
 
