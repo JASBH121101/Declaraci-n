@@ -42,8 +42,10 @@ export function calculateEvidenceScores(report) {
   const expectedChecks = Math.max(checks, Number(summary.journeyExpectedChecks) || checks);
   const passed = Math.max(0, Math.min(expectedChecks, Number(summary.journeyPassed) || 0));
   const scenarios = Math.max(0, Number(summary.scenarios) || 0);
+  const expectedScenarios = Math.max(scenarios, Number(summary.expectedScenarios) || scenarios);
   const overflowScenarios = Math.max(0, Math.min(scenarios, Number(summary.overflowScenarios) || 0));
   const axeScans = Math.max(0, Number(summary.axeScans) || 0);
+  const expectedAxeScans = Math.max(axeScans, Number(summary.expectedAxeScans) || axeScans);
   const axe = summary.axeByImpact || {};
   const accessibilityPenalty =
     (Number(axe.critical) || 0) * 25 +
@@ -52,17 +54,26 @@ export function calculateEvidenceScores(report) {
     (Number(axe.minor) || 0) * 3;
   return {
     functionality: expectedChecks > 0 ? clampScore((passed / expectedChecks) * 100) : null,
-    adaptability: scenarios > 0 ? clampScore(((scenarios - overflowScenarios) / scenarios) * 100) : null,
-    accessibility: axeScans > 0 ? clampScore(100 - accessibilityPenalty) : null,
+    adaptability: expectedScenarios > 0
+      ? clampScore(((scenarios - overflowScenarios) / expectedScenarios) * 100)
+      : null,
+    accessibility: expectedAxeScans > 0 && axeScans >= expectedAxeScans
+      ? clampScore(100 - accessibilityPenalty)
+      : null,
   };
 }
 
 export function calculateExperienceScores(evidenceReport, aiAnalyses = []) {
   const evidence = calculateEvidenceScores(evidenceReport);
   const valid = aiAnalyses.filter(item => item?.parseStatus === "structured" && item.review);
+  const expectedAiReviews = Math.max(0, Number(evidenceReport?.summary?.expectedAiReviews) || 0);
   const average = key => {
-    const values = valid.map(item => item.review[key]).filter(value => value !== null && value !== undefined && value !== "").map(Number).filter(value => Number.isFinite(value) && value >= 0 && value <= 100);
-    return values.length ? clampScore(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
+    const values = valid.map(item => item.review[key])
+      .filter(value => value !== null && value !== undefined && value !== "")
+      .map(Number)
+      .filter(value => Number.isFinite(value) && value >= 0 && value <= 100);
+    if (!values.length || (expectedAiReviews > 0 && values.length < expectedAiReviews)) return null;
+    return clampScore(values.reduce((sum, value) => sum + value, 0) / values.length);
   };
   const dimensions = {
     functionality: evidence.functionality,
