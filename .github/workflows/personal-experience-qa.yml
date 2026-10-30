@@ -61,7 +61,6 @@ jobs:
         run: node qa/personal-experience-qa.mjs
       - name: Review screenshots with Cloudflare Workers AI
         env:
-          QA_PROFILE: personal-experience
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: node qa/ai-visual-review.mjs
