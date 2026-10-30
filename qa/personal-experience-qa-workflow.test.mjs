@@ -17,7 +17,8 @@ test("workflow has a manual opt-in audit and a separate lightweight QA tool test
 });
 
 test("browser audit is bound to the published Declaraci-n URL and read-only requests", () => {
-  assert.ok(browserAudit.includes('https://jasbh121101.github.io/Declaraci-n/'));
+  assert.ok(profile.includes('https://jasbh121101.github.io/Declaraci-n/'));
+  assert.ok(browserAudit.includes('PERSONAL_EXPERIENCE_PROFILE.defaultUrl'));
   assert.ok(browserAudit.includes('request.method().toUpperCase()'));
   assert.ok(browserAudit.includes('blockedWrites'));
   assert.ok(browserAudit.includes('fullPage: true'));
