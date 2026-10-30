@@ -77,3 +77,9 @@ test("a quota error during JSON correction stops the personal review batch and r
   assert.ok(aiReview.includes("attachImagePreparation(error, sourceBytes, image)"));
   assert.ok(aiReview.includes("imageRuns = [...analyses, ...errors]"));
 });
+
+test("personal QA AI reviewer includes real browser-measured layout widths and grid geometry", () => {
+  assert.ok(aiReview.includes("viewportUtilizationPct"));
+  assert.ok(aiReview.includes("gridColumns"));
+  assert.ok(aiReview.includes("contentMetrics"));
+});
